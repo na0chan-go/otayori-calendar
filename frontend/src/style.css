@@ -1,0 +1,127 @@
+:root {
+  color: #25302a;
+  background: #f4ead8;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button {
+  font: inherit;
+}
+
+.page-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at 15% 18%, rgba(247, 184, 85, 0.42), transparent 28%),
+    radial-gradient(circle at 82% 20%, rgba(82, 132, 111, 0.24), transparent 30%),
+    linear-gradient(135deg, #f7efd9 0%, #e7d5b9 100%);
+}
+
+.hero-card {
+  width: min(720px, 100%);
+  padding: clamp(32px, 6vw, 64px);
+  border: 1px solid rgba(37, 48, 42, 0.12);
+  border-radius: 32px;
+  background: rgba(255, 252, 243, 0.86);
+  box-shadow: 0 28px 80px rgba(76, 59, 38, 0.18);
+}
+
+.eyebrow {
+  margin: 0 0 16px;
+  color: #6f7753;
+  font-family: Futura, "Trebuchet MS", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  color: #233226;
+  font-size: clamp(2.25rem, 8vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.07em;
+}
+
+.lead {
+  max-width: 520px;
+  margin: 24px 0 36px;
+  color: #526055;
+  font-size: 1.1rem;
+  line-height: 1.8;
+}
+
+.actions,
+.panel {
+  border-radius: 22px;
+  background: #fff8e9;
+  padding: 24px;
+}
+
+.google-button,
+.ghost-button {
+  cursor: pointer;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 24px;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.google-button {
+  color: #fffaf1;
+  background: #2e4a3a;
+  box-shadow: 0 12px 24px rgba(46, 74, 58, 0.22);
+}
+
+.ghost-button {
+  margin-top: 18px;
+  color: #2e4a3a;
+  background: #e9ddc7;
+}
+
+.google-button:hover,
+.ghost-button:hover {
+  transform: translateY(-2px);
+}
+
+.hint,
+.label,
+.error {
+  margin: 14px 0 0;
+  color: #687364;
+}
+
+.signed-in h2 {
+  margin: 8px 0;
+}
+
+.error {
+  color: #a13f2e;
+}
+
+@media (max-width: 560px) {
+  .page-shell {
+    padding: 16px;
+  }
+
+  .hero-card {
+    border-radius: 24px;
+  }
+}
