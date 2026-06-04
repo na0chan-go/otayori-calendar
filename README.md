@@ -154,7 +154,7 @@ AI抽出結果は確定データではなく、ユーザー確認前の候補と
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.25.8+
 - Node.js 22+
 - Docker / Docker Compose
 - Google Cloud OAuth Client
@@ -197,6 +197,7 @@ npm run dev
 | GET | `/auth/google/login` | Google OAuthログインを開始する |
 | GET | `/auth/google/callback` | Google OAuth callbackを受け取り、ユーザーとトークンを保存する |
 | GET | `/api/me` | ログイン中のアプリ内ユーザーを返す |
+| POST | `/api/manual-events` | 手入力予定をGoogleカレンダーへ登録し、event IDを保存する |
 | POST | `/auth/logout` | セッションCookieを削除する |
 
 ## License

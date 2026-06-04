@@ -76,6 +76,8 @@ func newTestServer() *Server {
 		GoogleClientID:     "client-id",
 		GoogleClientSecret: "client-secret",
 		GoogleRedirectURL:  "http://localhost:8080/auth/google/callback",
+		GoogleCalendarID:   "primary",
+		DefaultTimeZone:    "Asia/Tokyo",
 	}, nil)
 }
 
