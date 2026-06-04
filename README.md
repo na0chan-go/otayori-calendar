@@ -1,0 +1,2 @@
+# otayori-calendar
+保育園のおたより画像から予定候補を抽出し、確認後にGoogleカレンダーへ登録するWebアプリ
