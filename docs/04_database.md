@@ -94,3 +94,30 @@ CREATE INDEX idx_extracted_events_google_calendar_event_id ON extracted_events(g
 - `source_text` にはAIが予定候補と判断した根拠となる原文を保存する。
 - `confidence` はAI抽出結果の確信度として扱い、低い場合はUIで警告表示する。
 - token類は平文保存せず、実装時には暗号化を検討する。
+
+## manual_events
+
+OCR/AI抽出より先に、手入力した予定をGoogle Calendarへ登録するための予定データを保存する。
+
+```sql
+CREATE TABLE manual_events (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  event_date DATE NOT NULL,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
+  is_all_day BOOLEAN NOT NULL DEFAULT true,
+  location TEXT,
+  description TEXT,
+  time_zone TEXT NOT NULL DEFAULT 'Asia/Tokyo',
+  google_calendar_event_id TEXT,
+  status TEXT NOT NULL DEFAULT 'registered',
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+- `google_calendar_event_id` にはGoogle Calendar APIで作成されたevent IDを保存する。
+- 終日予定は `event_date` と `is_all_day` で表現する。
+- 時刻付き予定は `start_at` / `end_at` に保存する。

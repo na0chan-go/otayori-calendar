@@ -58,6 +58,7 @@ func (s *Server) routes() {
 	s.GET("/api/auth/google/callback", s.googleCallback)
 	s.POST("/api/auth/logout", s.logout)
 	s.GET("/api/me", s.me)
+	s.POST("/api/manual-events", s.createManualEvent)
 }
 
 func (s *Server) healthz(c echo.Context) error {

@@ -20,6 +20,21 @@ button {
   font: inherit;
 }
 
+input,
+textarea {
+  width: 100%;
+  border: 1px solid rgba(46, 74, 58, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 252, 243, 0.94);
+  color: #233226;
+  font: inherit;
+  padding: 12px 14px;
+}
+
+textarea {
+  resize: vertical;
+}
+
 .page-shell {
   display: grid;
   min-height: 100vh;
@@ -67,7 +82,8 @@ h1 {
 }
 
 .actions,
-.panel {
+.panel,
+.event-form {
   border-radius: 22px;
   background: #fff8e9;
   padding: 24px;
@@ -103,7 +119,8 @@ h1 {
 
 .hint,
 .label,
-.error {
+.error,
+.success {
   margin: 14px 0 0;
   color: #687364;
 }
@@ -116,6 +133,45 @@ h1 {
   color: #a13f2e;
 }
 
+.success {
+  color: #2e6f4d;
+}
+
+.event-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.event-form label {
+  display: grid;
+  gap: 8px;
+  color: #526055;
+  font-size: 0.96rem;
+}
+
+.checkbox-label {
+  align-items: center;
+  display: flex !important;
+  gap: 10px !important;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.time-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.google-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
+
 @media (max-width: 560px) {
   .page-shell {
     padding: 16px;
@@ -123,5 +179,9 @@ h1 {
 
   .hero-card {
     border-radius: 24px;
+  }
+
+  .time-grid {
+    grid-template-columns: 1fr;
   }
 }
