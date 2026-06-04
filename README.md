@@ -150,6 +150,55 @@ AI抽出結果は確定データではなく、ユーザー確認前の候補と
 7. Googleカレンダー登録
 8. README / docs / demoの整備
 
+## Local Development
+
+### Prerequisites
+
+- Go 1.25+
+- Node.js 22+
+- Docker / Docker Compose
+- Google Cloud OAuth Client
+
+### Google OAuth Setup
+
+Google Cloud ConsoleでOAuth Clientを作成し、以下を設定します。
+
+- Authorized JavaScript origins: `http://localhost:5173`
+- Authorized redirect URIs: `http://localhost:8080/auth/google/callback`
+- Scopes: `userinfo.email`, `userinfo.profile`, `calendar.events`
+
+### Backend
+
+```bash
+docker compose up -d postgres
+cd backend
+cp .env.example .env
+go mod tidy
+go run ./cmd/api
+```
+
+`.env` の `GOOGLE_CLIENT_ID` と `GOOGLE_CLIENT_SECRET` には、Google Cloudで発行した値を設定してください。
+
+### Frontend
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+ブラウザで `http://localhost:5173` を開き、「Googleでログイン」からOAuthログインを開始できます。
+
+### Auth API
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/auth/google/login` | Google OAuthログインを開始する |
+| GET | `/auth/google/callback` | Google OAuth callbackを受け取り、ユーザーとトークンを保存する |
+| GET | `/api/me` | ログイン中のアプリ内ユーザーを返す |
+| POST | `/auth/logout` | セッションCookieを削除する |
+
 ## License
 
 MIT
