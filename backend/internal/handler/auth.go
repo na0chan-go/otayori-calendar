@@ -34,6 +34,8 @@ func (s *Server) googleLogin(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create oauth state")
 	}
 
+	s.setOAuthStateCookie(c, state)
+
 	url := oauthConfig.AuthCodeURL(
 		state,
 		oauth2.AccessTypeOffline,
@@ -43,9 +45,16 @@ func (s *Server) googleLogin(c echo.Context) error {
 }
 
 func (s *Server) googleCallback(c echo.Context) error {
-	if !s.states.Consume(c.QueryParam("state"), time.Now()) {
+	queryState := c.QueryParam("state")
+	if !s.hasMatchingOAuthStateCookie(c, queryState) {
+		s.clearOAuthStateCookie(c)
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid oauth state")
 	}
+	if !s.states.Consume(queryState, time.Now()) {
+		s.clearOAuthStateCookie(c)
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid oauth state")
+	}
+	s.clearOAuthStateCookie(c)
 
 	code := c.QueryParam("code")
 	if code == "" {
@@ -175,6 +184,43 @@ func (s *Server) setSessionCookie(c echo.Context, userID uuid.UUID) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.cfg.IsProduction(),
 	})
+}
+
+func (s *Server) setOAuthStateCookie(c echo.Context, state string) {
+	c.SetCookie(&http.Cookie{
+		Name:     auth.OAuthStateCookieName,
+		Value:    state,
+		Path:     "/",
+		MaxAge:   10 * 60,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.cfg.IsProduction(),
+	})
+}
+
+func (s *Server) clearOAuthStateCookie(c echo.Context) {
+	c.SetCookie(&http.Cookie{
+		Name:     auth.OAuthStateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   s.cfg.IsProduction(),
+	})
+}
+
+func (s *Server) hasMatchingOAuthStateCookie(c echo.Context, queryState string) bool {
+	if queryState == "" {
+		return false
+	}
+
+	cookie, err := c.Cookie(auth.OAuthStateCookieName)
+	if err != nil {
+		return false
+	}
+
+	return cookie.Value == queryState
 }
 
 func (s *Server) currentUserID(c echo.Context) (uuid.UUID, error) {

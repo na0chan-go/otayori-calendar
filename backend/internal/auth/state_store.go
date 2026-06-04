@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const OAuthStateCookieName = "otayori_oauth_state"
+
 type StateStore struct {
 	mu      sync.Mutex
 	ttl     time.Duration
