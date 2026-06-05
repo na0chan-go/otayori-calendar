@@ -15,7 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxLetterImageSize = 10 << 20
+const (
+	maxLetterImageSize      = 10 << 20
+	maxLetterUploadBodySize = maxLetterImageSize + (1 << 20)
+)
 
 var allowedLetterImageTypes = map[string]string{
 	"image/jpeg": ".jpg",
@@ -38,7 +41,12 @@ func (s *Server) uploadLetter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
 	}
 
+	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, maxLetterUploadBodySize)
 	if err := c.Request().ParseMultipartForm(maxLetterImageSize); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			return echo.NewHTTPError(http.StatusRequestEntityTooLarge, "image must be 10MB or smaller")
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid multipart form")
 	}
 
