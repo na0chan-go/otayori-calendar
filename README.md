@@ -125,6 +125,7 @@ AI抽出結果は確定データではなく、ユーザー確認前の候補と
 - [AI Extraction](docs/06_ai_extraction.md)
 - [Security](docs/07_security.md)
 - [Roadmap](docs/08_roadmap.md)
+- [Issue Workflow](docs/09_issue_workflow.md)
 
 ## Portfolio Message
 
