@@ -198,6 +198,9 @@ npm run dev
 | GET | `/auth/google/callback` | Google OAuth callbackを受け取り、ユーザーとトークンを保存する |
 | GET | `/api/me` | ログイン中のアプリ内ユーザーを返す |
 | POST | `/api/manual-events` | 手入力予定をGoogleカレンダーへ登録し、event IDを保存する |
+| POST | `/api/letters` | おたより画像をアップロードする |
+| GET | `/api/letters` | 自分のおたより画像一覧を返す |
+| GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
 | POST | `/auth/logout` | セッションCookieを削除する |
 
 ## License

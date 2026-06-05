@@ -38,7 +38,9 @@ CREATE TABLE letters (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id),
   title TEXT,
-  image_path TEXT,
+  image_path TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
   ocr_text TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -94,6 +96,7 @@ CREATE INDEX idx_extracted_events_google_calendar_event_id ON extracted_events(g
 - `source_text` にはAIが予定候補と判断した根拠となる原文を保存する。
 - `confidence` はAI抽出結果の確信度として扱い、低い場合はUIで警告表示する。
 - token類は平文保存せず、実装時には暗号化を検討する。
+- `letters.image_path` は内部保存パスであり、APIレスポンスでは直接返さない。
 
 ## manual_events
 

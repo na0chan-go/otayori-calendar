@@ -32,6 +32,7 @@
 ## Access Control
 
 - すべてのlettersはuser_idに紐づける
+- 画像表示APIは `letters.user_id` とログインユーザーIDを照合する
 - すべてのextracted_eventsはletter_id経由でユーザー所有権を検証する
 - 他ユーザーの画像・OCR結果・予定候補にはアクセスできないようにする
 
