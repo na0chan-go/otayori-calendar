@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/oauth2"
 	calendar "google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -25,6 +27,23 @@ type manualEventRequest struct {
 	Location    string `json:"location"`
 	Description string `json:"description"`
 	TimeZone    string `json:"time_zone"`
+}
+
+type calendarEventResponse struct {
+	ID                    uuid.UUID  `json:"id"`
+	SourceType            string     `json:"source_type"`
+	Title                 string     `json:"title"`
+	EventDate             time.Time  `json:"event_date"`
+	StartAt               *time.Time `json:"start_at"`
+	EndAt                 *time.Time `json:"end_at"`
+	IsAllDay              bool       `json:"is_all_day"`
+	Location              string     `json:"location"`
+	Description           string     `json:"description"`
+	TimeZone              string     `json:"time_zone"`
+	GoogleCalendarEventID string     `json:"google_calendar_event_id"`
+	Status                string     `json:"status"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 func (s *Server) createManualEvent(c echo.Context) error {
@@ -70,6 +89,113 @@ func (s *Server) createManualEvent(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]any{"event": manualEvent})
+}
+
+func (s *Server) retryManualEvent(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	eventID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "manual event not found")
+	}
+
+	var manualEvent model.ManualEvent
+	if err := s.db.WithContext(c.Request().Context()).
+		First(&manualEvent, "id = ? AND user_id = ?", eventID, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "manual event not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load manual event")
+	}
+
+	if manualEvent.GoogleCalendarEventID != "" {
+		return echo.NewHTTPError(http.StatusConflict, "event is already registered")
+	}
+	if manualEvent.Status != model.ManualEventStatusFailed {
+		return echo.NewHTTPError(http.StatusConflict, "only failed events can be retried")
+	}
+
+	googleEvent, err := s.buildGoogleEventFromManualEvent(manualEvent)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	googleToken, err := s.loadGoogleToken(c.Request().Context(), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "google token not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load google token")
+	}
+
+	createdEvent, err := s.insertGoogleCalendarEvent(c.Request().Context(), userID, googleToken, googleEvent)
+	if err != nil {
+		manualEvent.Status = model.ManualEventStatusFailed
+		_ = s.db.WithContext(c.Request().Context()).Save(&manualEvent).Error
+		return echo.NewHTTPError(http.StatusBadGateway, "failed to create google calendar event")
+	}
+	if createdEvent.Id == "" {
+		manualEvent.Status = model.ManualEventStatusFailed
+		_ = s.db.WithContext(c.Request().Context()).Save(&manualEvent).Error
+		return echo.NewHTTPError(http.StatusBadGateway, "google calendar event id is missing")
+	}
+
+	manualEvent.GoogleCalendarEventID = createdEvent.Id
+	manualEvent.Status = model.ManualEventStatusRegistered
+	if err := s.db.WithContext(c.Request().Context()).Save(&manualEvent).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save manual event")
+	}
+
+	return c.JSON(http.StatusOK, map[string]any{"event": manualEvent})
+}
+
+func (s *Server) listCalendarEvents(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	var manualEvents []model.ManualEvent
+	if err := s.db.WithContext(c.Request().Context()).
+		Where("user_id = ? AND status IN ?", userID, []string{
+			model.ManualEventStatusRegistered,
+			model.ManualEventStatusFailed,
+		}).
+		Order("event_date ASC, created_at DESC").
+		Find(&manualEvents).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load calendar events")
+	}
+
+	var extractedEvents []model.ExtractedEvent
+	if err := s.db.WithContext(c.Request().Context()).
+		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
+		Where("letters.user_id = ? AND extracted_events.status IN ?", userID, []string{
+			model.ExtractedEventStatusRegistered,
+			model.ExtractedEventStatusFailed,
+		}).
+		Order("extracted_events.event_date ASC, extracted_events.created_at DESC").
+		Find(&extractedEvents).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load calendar events")
+	}
+
+	events := make([]calendarEventResponse, 0, len(manualEvents)+len(extractedEvents))
+	for _, event := range manualEvents {
+		events = append(events, newManualCalendarEventResponse(event))
+	}
+	for _, event := range extractedEvents {
+		events = append(events, newExtractedCalendarEventResponse(event, s.cfg.DefaultTimeZone))
+	}
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].EventDate.Equal(events[j].EventDate) {
+			return events[i].CreatedAt.After(events[j].CreatedAt)
+		}
+		return events[i].EventDate.Before(events[j].EventDate)
+	})
+
+	return c.JSON(http.StatusOK, map[string]any{"events": events})
 }
 
 func (s *Server) buildManualEvent(userID uuid.UUID, req manualEventRequest) (model.ManualEvent, *calendar.Event, error) {
@@ -141,6 +267,38 @@ func (s *Server) buildManualEvent(userID uuid.UUID, req manualEventRequest) (mod
 	return manualEvent, googleEvent, nil
 }
 
+func (s *Server) buildGoogleEventFromManualEvent(manualEvent model.ManualEvent) (*calendar.Event, error) {
+	googleEvent := &calendar.Event{
+		Summary:     manualEvent.Title,
+		Location:    manualEvent.Location,
+		Description: manualEvent.Description,
+	}
+
+	timeZone := strings.TrimSpace(manualEvent.TimeZone)
+	if timeZone == "" {
+		timeZone = s.cfg.DefaultTimeZone
+	}
+
+	if manualEvent.IsAllDay {
+		date := manualEvent.EventDate.Format("2006-01-02")
+		endDate := manualEvent.EventDate.AddDate(0, 0, 1).Format("2006-01-02")
+		googleEvent.Start = &calendar.EventDateTime{Date: date, TimeZone: timeZone}
+		googleEvent.End = &calendar.EventDateTime{Date: endDate, TimeZone: timeZone}
+		return googleEvent, nil
+	}
+
+	if manualEvent.StartAt == nil || manualEvent.EndAt == nil {
+		return nil, errors.New("start_at and end_at are required when is_all_day is false")
+	}
+	if !manualEvent.EndAt.After(*manualEvent.StartAt) {
+		return nil, errors.New("end_at must be after start_at")
+	}
+
+	googleEvent.Start = &calendar.EventDateTime{DateTime: manualEvent.StartAt.Format(time.RFC3339), TimeZone: timeZone}
+	googleEvent.End = &calendar.EventDateTime{DateTime: manualEvent.EndAt.Format(time.RFC3339), TimeZone: timeZone}
+	return googleEvent, nil
+}
+
 func (s *Server) loadGoogleToken(ctx context.Context, userID uuid.UUID) (*oauth2.Token, error) {
 	var stored model.GoogleToken
 	if err := s.db.WithContext(ctx).First(&stored, "user_id = ?", userID).Error; err != nil {
@@ -186,6 +344,78 @@ func (s *Server) insertGoogleCalendarEvent(ctx context.Context, userID uuid.UUID
 	}
 
 	return service.Events.Insert(s.cfg.GoogleCalendarID, event).Do()
+}
+
+func newManualCalendarEventResponse(event model.ManualEvent) calendarEventResponse {
+	return calendarEventResponse{
+		ID:                    event.ID,
+		SourceType:            "manual",
+		Title:                 event.Title,
+		EventDate:             event.EventDate,
+		StartAt:               event.StartAt,
+		EndAt:                 event.EndAt,
+		IsAllDay:              event.IsAllDay,
+		Location:              event.Location,
+		Description:           event.Description,
+		TimeZone:              event.TimeZone,
+		GoogleCalendarEventID: event.GoogleCalendarEventID,
+		Status:                event.Status,
+		CreatedAt:             event.CreatedAt,
+		UpdatedAt:             event.UpdatedAt,
+	}
+}
+
+func newExtractedCalendarEventResponse(event model.ExtractedEvent, timeZone string) calendarEventResponse {
+	response := calendarEventResponse{
+		ID:                    event.ID,
+		SourceType:            "extracted",
+		Title:                 event.Title,
+		EventDate:             event.EventDate,
+		IsAllDay:              event.IsAllDay,
+		Location:              event.Location,
+		Description:           event.Description,
+		TimeZone:              timeZone,
+		GoogleCalendarEventID: event.GoogleCalendarEventID,
+		Status:                event.Status,
+		CreatedAt:             event.CreatedAt,
+		UpdatedAt:             event.UpdatedAt,
+	}
+
+	if event.StartTime != nil {
+		startHour, startMinute := datatypesClockParts(*event.StartTime)
+		startAt := time.Date(
+			event.EventDate.Year(),
+			event.EventDate.Month(),
+			event.EventDate.Day(),
+			startHour,
+			startMinute,
+			0,
+			0,
+			time.Local,
+		)
+		response.StartAt = &startAt
+	}
+	if event.EndTime != nil {
+		endHour, endMinute := datatypesClockParts(*event.EndTime)
+		endAt := time.Date(
+			event.EventDate.Year(),
+			event.EventDate.Month(),
+			event.EventDate.Day(),
+			endHour,
+			endMinute,
+			0,
+			0,
+			time.Local,
+		)
+		response.EndAt = &endAt
+	}
+
+	return response
+}
+
+func datatypesClockParts(clock datatypes.Time) (int, int) {
+	duration := time.Duration(clock)
+	return int(duration / time.Hour), int((duration % time.Hour) / time.Minute)
 }
 
 func (s *Server) saveGoogleToken(ctx context.Context, userID uuid.UUID, token *oauth2.Token, fallbackRefreshToken string) error {

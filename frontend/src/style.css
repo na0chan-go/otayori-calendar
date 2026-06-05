@@ -179,14 +179,16 @@ h1 {
 }
 
 .empty-state,
-.letter-card {
+.letter-card,
+.registered-event-card {
   border-radius: 20px;
   background: rgba(255, 248, 233, 0.78);
   padding: 18px;
 }
 
 .letter-card,
-.candidate-card {
+.candidate-card,
+.registered-event-card {
   display: grid;
   gap: 16px;
 }
@@ -233,6 +235,20 @@ h1 {
   padding: 18px;
 }
 
+.registered-event-card.failed {
+  border: 1px solid rgba(161, 63, 46, 0.28);
+  background: rgba(255, 238, 225, 0.82);
+}
+
+.registered-event-card h3 {
+  margin: 6px 0 0;
+}
+
+.registered-event-card p {
+  margin: 0;
+  color: #687364;
+}
+
 .candidate-card.ignored {
   opacity: 0.62;
 }
@@ -269,7 +285,8 @@ h1 {
 }
 
 .status-chip,
-.warning-chip {
+.warning-chip,
+.source-type-chip {
   width: fit-content;
   margin: 0;
   border-radius: 999px;
@@ -289,6 +306,11 @@ h1 {
 .warning-chip {
   color: #8f4b1f;
   background: #f7dfb9;
+}
+
+.source-type-chip {
+  color: #244a42;
+  background: rgba(190, 220, 205, 0.72);
 }
 
 .source-box {
