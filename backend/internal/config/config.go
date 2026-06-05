@@ -20,6 +20,7 @@ type Config struct {
 	GoogleRedirectURL  string
 	GoogleCalendarID   string
 	DefaultTimeZone    string
+	LetterStorageDir   string
 }
 
 func Load() (Config, error) {
@@ -36,6 +37,7 @@ func Load() (Config, error) {
 		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
 		GoogleCalendarID:   getEnv("GOOGLE_CALENDAR_ID", "primary"),
 		DefaultTimeZone:    getEnv("DEFAULT_TIME_ZONE", "Asia/Tokyo"),
+		LetterStorageDir:   getEnv("LETTER_STORAGE_DIR", "storage/letters"),
 	}
 
 	if cfg.DatabaseURL == "" {

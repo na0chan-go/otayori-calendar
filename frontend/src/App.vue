@@ -8,12 +8,27 @@ type User = {
   created_at: string
 }
 
+type Letter = {
+  id: string
+  title: string
+  mime_type: string
+  file_size: number
+  image_url: string
+  created_at: string
+  object_url?: string
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const user = ref<User | null>(null)
 const loading = ref(true)
 const errorMessage = ref('')
 const eventMessage = ref('')
 const savingEvent = ref(false)
+const letterMessage = ref('')
+const uploadingLetter = ref(false)
+const letters = ref<Letter[]>([])
+const letterTitle = ref('')
+const letterImage = ref<File | null>(null)
 const manualEvent = ref({
   title: '',
   event_date: '',
@@ -43,6 +58,7 @@ async function loadMe() {
 
     const body = (await response.json()) as { user: User }
     user.value = body.user
+    await loadLetters()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '予期しないエラーが発生しました'
   } finally {
@@ -60,6 +76,85 @@ async function logout() {
     credentials: 'include',
   })
   user.value = null
+  clearLetterObjectUrls()
+  letters.value = []
+}
+
+function onLetterImageChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  letterImage.value = input.files?.[0] ?? null
+}
+
+async function uploadLetter() {
+  if (!letterImage.value) {
+    errorMessage.value = '画像を選択してください'
+    return
+  }
+
+  uploadingLetter.value = true
+  letterMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const formData = new FormData()
+    formData.append('image', letterImage.value)
+    formData.append('title', letterTitle.value)
+
+    const response = await fetch(`${apiBaseUrl}/api/letters`, {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? 'おたより画像をアップロードできませんでした')
+    }
+
+    letterTitle.value = ''
+    letterImage.value = null
+    letterMessage.value = 'おたより画像をアップロードしました'
+    await loadLetters()
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : 'おたより画像のアップロードでエラーが発生しました'
+  } finally {
+    uploadingLetter.value = false
+  }
+}
+
+async function loadLetters() {
+  const response = await fetch(`${apiBaseUrl}/api/letters`, {
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('おたより一覧を取得できませんでした')
+  }
+
+  const body = (await response.json()) as { letters: Letter[] }
+  clearLetterObjectUrls()
+  letters.value = await Promise.all(
+    body.letters.map(async (letter) => ({
+      ...letter,
+      object_url: await loadLetterImage(letter.image_url),
+    })),
+  )
+}
+
+async function loadLetterImage(imageUrl: string) {
+  const response = await fetch(`${apiBaseUrl}${imageUrl}`, {
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('おたより画像を取得できませんでした')
+  }
+
+  return URL.createObjectURL(await response.blob())
+}
+
+function clearLetterObjectUrls() {
+  letters.value.forEach((letter) => {
+    if (letter.object_url) URL.revokeObjectURL(letter.object_url)
+  })
 }
 
 async function createManualEvent() {
@@ -119,6 +214,34 @@ onMounted(loadMe)
         <p>{{ user.email }}</p>
         <button class="ghost-button" type="button" @click="logout">ログアウト</button>
       </div>
+
+      <form v-if="user" class="event-form" @submit.prevent="uploadLetter">
+        <p class="label">おたより画像</p>
+        <label>
+          タイトル
+          <input v-model="letterTitle" type="text" placeholder="6月のおたより" />
+        </label>
+        <label>
+          画像
+          <input accept="image/jpeg,image/png,image/webp" required type="file" @change="onLetterImageChange" />
+        </label>
+        <button class="google-button" :disabled="uploadingLetter" type="submit">
+          {{ uploadingLetter ? 'アップロード中...' : '画像をアップロード' }}
+        </button>
+        <p v-if="letterMessage" class="success">{{ letterMessage }}</p>
+      </form>
+
+      <section v-if="user" class="letters-section">
+        <p class="label">アップロード済み</p>
+        <div v-if="letters.length === 0" class="empty-state">まだおたより画像はありません。</div>
+        <article v-for="letter in letters" :key="letter.id" class="letter-card">
+          <img v-if="letter.object_url" :src="letter.object_url" :alt="letter.title || 'おたより画像'" />
+          <div>
+            <h3>{{ letter.title || '無題のおたより' }}</h3>
+            <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
+          </div>
+        </article>
+      </section>
 
       <form v-if="user" class="event-form" @submit.prevent="createManualEvent">
         <p class="label">手入力予定</p>

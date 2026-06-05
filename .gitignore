@@ -7,3 +7,4 @@ frontend/.env
 node_modules/
 dist/
 *.tsbuildinfo
+storage/
