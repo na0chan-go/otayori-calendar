@@ -70,6 +70,7 @@ const letterMessage = ref('')
 const uploadingLetter = ref(false)
 const extractingLetterId = ref('')
 const savingCandidateId = ref('')
+const registeringCandidateId = ref('')
 const candidateMessage = ref('')
 const calendarMessage = ref('')
 const retryingCalendarEventId = ref('')
@@ -328,6 +329,37 @@ async function ignoreExtractedEvent(event: ExtractedEvent) {
   }
 }
 
+async function registerExtractedEvent(event: ExtractedEvent) {
+  registeringCandidateId.value = event.id
+  candidateMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/extracted-events/${event.id}/register`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? '予定候補をGoogleカレンダーへ登録できませんでした')
+    }
+
+    const body = (await response.json()) as { event: ExtractedEvent }
+    replaceExtractedEvent(body.event)
+    candidateMessage.value = '予定候補をGoogleカレンダーへ登録しました'
+    await loadCalendarEvents()
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : '予定候補のGoogleカレンダー登録でエラーが発生しました'
+  } finally {
+    registeringCandidateId.value = ''
+  }
+}
+
+function canRegisterExtractedEvent(event: ExtractedEvent) {
+  return ['confirmed', 'failed', 'deleted'].includes(event.status)
+}
+
 function replaceExtractedEvent(nextEvent: ExtractedEvent) {
   extractedEvents.value = extractedEvents.value.map((event) =>
     event.id === nextEvent.id ? nextEvent : event,
@@ -582,8 +614,22 @@ onMounted(loadMe)
                 {{ savingCandidateId === event.id ? '保存中...' : '保存' }}
               </button>
               <button
+                v-if="canRegisterExtractedEvent(event)"
+                class="google-button"
+                :disabled="registeringCandidateId === event.id"
+                type="button"
+                @click="registerExtractedEvent(event)"
+              >
+                {{ registeringCandidateId === event.id ? '登録中...' : 'Googleカレンダーに登録' }}
+              </button>
+              <button
                 class="ghost-button"
-                :disabled="savingCandidateId === event.id || event.status === 'ignored'"
+                :disabled="
+                  savingCandidateId === event.id ||
+                  registeringCandidateId === event.id ||
+                  event.status === 'ignored' ||
+                  event.status === 'registered'
+                "
                 type="button"
                 @click="ignoreExtractedEvent(event)"
               >
