@@ -43,6 +43,22 @@ type ExtractedEventDraft = {
   description: string
 }
 
+type BulkExtractedEventResult = {
+  id: string
+  status: 'success' | 'failed'
+  message?: string
+  event?: ExtractedEvent
+}
+
+type BulkExtractedEventsResponse = {
+  events: ExtractedEvent[]
+  results: BulkExtractedEventResult[]
+  summary: {
+    success: number
+    failed: number
+  }
+}
+
 type CalendarEvent = {
   id: string
   source_type: 'manual' | 'extracted'
@@ -71,6 +87,8 @@ const uploadingLetter = ref(false)
 const extractingLetterId = ref('')
 const savingCandidateId = ref('')
 const registeringCandidateId = ref('')
+const selectedCandidateIds = ref<string[]>([])
+const bulkCandidateAction = ref('')
 const candidateMessage = ref('')
 const calendarMessage = ref('')
 const retryingCalendarEventId = ref('')
@@ -133,6 +151,7 @@ async function logout() {
   extractedEvents.value = []
   calendarEvents.value = []
   eventDrafts.value = {}
+  selectedCandidateIds.value = []
   ocrTextByLetter.value = {}
 }
 
@@ -225,6 +244,7 @@ async function loadExtractedEvents() {
   const body = (await response.json()) as { events: ExtractedEvent[] }
   extractedEvents.value = body.events
   syncEventDrafts(body.events)
+  pruneSelectedCandidateIds()
 }
 
 function mergeExtractedEvents(events: ExtractedEvent[]) {
@@ -234,6 +254,7 @@ function mergeExtractedEvents(events: ExtractedEvent[]) {
     toDateInput(a.event_date).localeCompare(toDateInput(b.event_date)),
   )
   syncEventDrafts(extractedEvents.value)
+  pruneSelectedCandidateIds()
 }
 
 function syncEventDrafts(events: ExtractedEvent[]) {
@@ -356,8 +377,92 @@ async function registerExtractedEvent(event: ExtractedEvent) {
   }
 }
 
+async function bulkConfirmExtractedEvents() {
+  await runBulkExtractedEventAction('confirm')
+}
+
+async function bulkIgnoreExtractedEvents() {
+  await runBulkExtractedEventAction('ignore')
+}
+
+async function bulkRegisterExtractedEvents() {
+  await runBulkExtractedEventAction('register')
+}
+
+async function runBulkExtractedEventAction(action: 'confirm' | 'ignore' | 'register') {
+  const ids = [...selectedCandidateIds.value]
+  if (ids.length === 0) {
+    candidateMessage.value = '一括操作する予定候補を選択してください'
+    return
+  }
+
+  const actionLabels = {
+    confirm: '確認',
+    ignore: '除外',
+    register: 'Googleカレンダー登録',
+  } as const
+
+  bulkCandidateAction.value = action
+  candidateMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/extracted-events/bulk-${action}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ids }),
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? `予定候補の一括${actionLabels[action]}に失敗しました`)
+    }
+
+    const body = (await response.json()) as BulkExtractedEventsResponse
+    mergeExtractedEvents(body.events)
+    selectedCandidateIds.value = selectedCandidateIds.value.filter((id) =>
+      body.results.some((result) => result.id === id && result.status === 'failed'),
+    )
+    candidateMessage.value = `一括${actionLabels[action]}: 成功 ${body.summary.success}件 / 失敗 ${body.summary.failed}件`
+
+    if (action === 'register') {
+      await loadCalendarEvents()
+    }
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : `予定候補の一括${actionLabels[action]}でエラーが発生しました`
+  } finally {
+    bulkCandidateAction.value = ''
+  }
+}
+
 function canRegisterExtractedEvent(event: ExtractedEvent) {
   return ['confirmed', 'failed', 'deleted'].includes(event.status)
+}
+
+function canSelectExtractedEvent(event: ExtractedEvent) {
+  return event.status !== 'registered'
+}
+
+function selectableExtractedEvents() {
+  return extractedEvents.value.filter(canSelectExtractedEvent)
+}
+
+function allSelectableCandidatesSelected() {
+  const selectableIds = selectableExtractedEvents().map((event) => event.id)
+  return selectableIds.length > 0 && selectableIds.every((id) => selectedCandidateIds.value.includes(id))
+}
+
+function toggleAllSelectableCandidates(event: Event) {
+  const checked = (event.target as HTMLInputElement).checked
+  selectedCandidateIds.value = checked ? selectableExtractedEvents().map((candidate) => candidate.id) : []
+}
+
+function pruneSelectedCandidateIds() {
+  const selectableIds = new Set(selectableExtractedEvents().map((event) => event.id))
+  selectedCandidateIds.value = selectedCandidateIds.value.filter((id) => selectableIds.has(id))
 }
 
 function replaceExtractedEvent(nextEvent: ExtractedEvent) {
@@ -368,6 +473,7 @@ function replaceExtractedEvent(nextEvent: ExtractedEvent) {
     ...eventDrafts.value,
     [nextEvent.id]: toEventDraft(nextEvent),
   }
+  pruneSelectedCandidateIds()
 }
 
 async function loadCalendarEvents() {
@@ -564,6 +670,44 @@ onMounted(loadMe)
 
       <section v-if="user && extractedEvents.length > 0" class="letters-section">
         <p class="label">予定候補の確認</p>
+        <div class="bulk-toolbar">
+          <label class="checkbox-label bulk-select-label">
+            <input
+              :checked="allSelectableCandidatesSelected()"
+              :disabled="selectableExtractedEvents().length === 0 || bulkCandidateAction !== ''"
+              type="checkbox"
+              @change="toggleAllSelectableCandidates"
+            />
+            まとめて選択
+          </label>
+          <p>{{ selectedCandidateIds.length }}件選択中</p>
+          <div class="bulk-actions">
+            <button
+              class="ghost-button"
+              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
+              type="button"
+              @click="bulkConfirmExtractedEvents"
+            >
+              {{ bulkCandidateAction === 'confirm' ? '確認中...' : '一括確認' }}
+            </button>
+            <button
+              class="ghost-button"
+              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
+              type="button"
+              @click="bulkIgnoreExtractedEvents"
+            >
+              {{ bulkCandidateAction === 'ignore' ? '除外中...' : '一括除外' }}
+            </button>
+            <button
+              class="google-button"
+              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
+              type="button"
+              @click="bulkRegisterExtractedEvents"
+            >
+              {{ bulkCandidateAction === 'register' ? '登録中...' : '一括登録' }}
+            </button>
+          </div>
+        </div>
         <article
           v-for="event in extractedEvents"
           :key="event.id"
@@ -571,7 +715,16 @@ onMounted(loadMe)
           :class="{ ignored: event.status === 'ignored' }"
         >
           <div class="candidate-heading">
-            <div>
+            <div class="candidate-title-row">
+              <label class="candidate-select">
+                <input
+                  v-model="selectedCandidateIds"
+                  :disabled="!canSelectExtractedEvent(event) || bulkCandidateAction !== ''"
+                  :value="event.id"
+                  type="checkbox"
+                />
+                <span>選択</span>
+              </label>
               <p class="status-chip">{{ event.status }}</p>
               <h3>{{ event.title }}</h3>
             </div>

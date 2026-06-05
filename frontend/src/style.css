@@ -235,6 +235,37 @@ h1 {
   padding: 18px;
 }
 
+.bulk-toolbar {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(46, 74, 58, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 252, 243, 0.84);
+  padding: 16px;
+}
+
+.bulk-toolbar p {
+  margin: 0;
+  color: #687364;
+}
+
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.bulk-actions .google-button,
+.bulk-actions .ghost-button {
+  margin-top: 0;
+}
+
+.bulk-select-label {
+  color: #526055;
+  font-weight: 700;
+}
+
 .registered-event-card.failed {
   border: 1px solid rgba(161, 63, 46, 0.28);
   background: rgba(255, 238, 225, 0.82);
@@ -264,6 +295,24 @@ h1 {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+}
+
+.candidate-title-row {
+  display: grid;
+  gap: 8px;
+}
+
+.candidate-select {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: fit-content;
+  color: #526055;
+  font-size: 0.88rem;
+}
+
+.candidate-select input {
+  width: auto;
 }
 
 .candidate-card h3 {
