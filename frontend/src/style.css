@@ -233,7 +233,72 @@ h1 {
   padding: 18px;
 }
 
+.candidate-card.ignored {
+  opacity: 0.62;
+}
+
+.candidate-heading,
+.candidate-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
 .candidate-card h3 {
+  margin: 6px 0 0;
+}
+
+.candidate-form {
+  display: grid;
+  gap: 14px;
+}
+
+.candidate-form label {
+  display: grid;
+  gap: 8px;
+  color: #526055;
+}
+
+.candidate-actions {
+  justify-content: flex-start;
+}
+
+.candidate-actions .ghost-button {
+  margin-top: 0;
+}
+
+.status-chip,
+.warning-chip {
+  width: fit-content;
+  margin: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-family: Futura, "Trebuchet MS", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-chip {
+  color: #526055;
+  background: rgba(233, 221, 199, 0.86);
+}
+
+.warning-chip {
+  color: #8f4b1f;
+  background: #f7dfb9;
+}
+
+.source-box {
+  display: grid;
+  gap: 8px;
+  border-left: 3px solid rgba(46, 74, 58, 0.2);
+  padding-left: 12px;
+}
+
+.source-box p {
   margin: 0;
 }
 

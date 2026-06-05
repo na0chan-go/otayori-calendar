@@ -202,6 +202,9 @@ npm run dev
 | GET | `/api/letters` | 自分のおたより画像一覧を返す |
 | GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
 | POST | `/api/letters/:id/extract-events` | OCRテキストまたはAI JSON出力から予定候補を抽出しdraft保存する |
+| GET | `/api/extracted-events` | 自分の予定候補一覧を返す |
+| PATCH | `/api/extracted-events/:id` | 予定候補のタイトル・日付・時間・場所・説明を更新する |
+| POST | `/api/extracted-events/:id/ignore` | 不要な予定候補をignoredにする |
 | POST | `/auth/logout` | セッションCookieを削除する |
 
 ## License

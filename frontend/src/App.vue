@@ -26,9 +26,21 @@ type ExtractedEvent = {
   start_time: string | null
   end_time: string | null
   is_all_day: boolean
+  location: string
   description: string
   confidence: number
   source_text: string
+  status: string
+}
+
+type ExtractedEventDraft = {
+  title: string
+  event_date: string
+  start_time: string
+  end_time: string
+  is_all_day: boolean
+  location: string
+  description: string
 }
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -40,8 +52,11 @@ const savingEvent = ref(false)
 const letterMessage = ref('')
 const uploadingLetter = ref(false)
 const extractingLetterId = ref('')
+const savingCandidateId = ref('')
+const candidateMessage = ref('')
 const letters = ref<Letter[]>([])
 const extractedEvents = ref<ExtractedEvent[]>([])
+const eventDrafts = ref<Record<string, ExtractedEventDraft>>({})
 const ocrTextByLetter = ref<Record<string, string>>({})
 const letterTitle = ref('')
 const letterImage = ref<File | null>(null)
@@ -74,7 +89,7 @@ async function loadMe() {
 
     const body = (await response.json()) as { user: User }
     user.value = body.user
-    await loadLetters()
+    await Promise.all([loadLetters(), loadExtractedEvents()])
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '予期しないエラーが発生しました'
   } finally {
@@ -95,6 +110,7 @@ async function logout() {
   clearLetterObjectUrls()
   letters.value = []
   extractedEvents.value = []
+  eventDrafts.value = {}
   ocrTextByLetter.value = {}
 }
 
@@ -166,13 +182,138 @@ async function extractEvents(letter: Letter) {
     }
 
     const body = (await response.json()) as { events: ExtractedEvent[] }
-    extractedEvents.value = body.events
+    mergeExtractedEvents(body.events)
     letterMessage.value = '予定候補をdraftとして保存しました'
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : '予定候補の抽出でエラーが発生しました'
   } finally {
     extractingLetterId.value = ''
+  }
+}
+
+async function loadExtractedEvents() {
+  const response = await fetch(`${apiBaseUrl}/api/extracted-events`, {
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('予定候補一覧を取得できませんでした')
+  }
+
+  const body = (await response.json()) as { events: ExtractedEvent[] }
+  extractedEvents.value = body.events
+  syncEventDrafts(body.events)
+}
+
+function mergeExtractedEvents(events: ExtractedEvent[]) {
+  const eventMap = new Map(extractedEvents.value.map((event) => [event.id, event]))
+  events.forEach((event) => eventMap.set(event.id, event))
+  extractedEvents.value = Array.from(eventMap.values()).sort((a, b) =>
+    toDateInput(a.event_date).localeCompare(toDateInput(b.event_date)),
+  )
+  syncEventDrafts(extractedEvents.value)
+}
+
+function syncEventDrafts(events: ExtractedEvent[]) {
+  const drafts = { ...eventDrafts.value }
+  events.forEach((event) => {
+    drafts[event.id] = toEventDraft(event)
+  })
+  eventDrafts.value = drafts
+}
+
+function toEventDraft(event: ExtractedEvent): ExtractedEventDraft {
+  return {
+    title: event.title,
+    event_date: toDateInput(event.event_date),
+    start_time: toTimeInput(event.start_time),
+    end_time: toTimeInput(event.end_time),
+    is_all_day: event.is_all_day,
+    location: event.location ?? '',
+    description: event.description ?? '',
+  }
+}
+
+function toDateInput(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10)
+  return new Date(value).toISOString().slice(0, 10)
+}
+
+function toTimeInput(value: string | null) {
+  if (!value) return ''
+  return value.slice(0, 5)
+}
+
+async function saveExtractedEvent(event: ExtractedEvent) {
+  const draft = eventDrafts.value[event.id]
+  if (!draft) return
+
+  savingCandidateId.value = event.id
+  candidateMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/extracted-events/${event.id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...draft,
+        start_time: draft.is_all_day ? '' : draft.start_time,
+        end_time: draft.is_all_day ? '' : draft.end_time,
+      }),
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? '予定候補を更新できませんでした')
+    }
+
+    const body = (await response.json()) as { event: ExtractedEvent }
+    replaceExtractedEvent(body.event)
+    candidateMessage.value = '予定候補を保存しました'
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : '予定候補の更新でエラーが発生しました'
+  } finally {
+    savingCandidateId.value = ''
+  }
+}
+
+async function ignoreExtractedEvent(event: ExtractedEvent) {
+  savingCandidateId.value = event.id
+  candidateMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/extracted-events/${event.id}/ignore`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? '予定候補を除外できませんでした')
+    }
+
+    const body = (await response.json()) as { event: ExtractedEvent }
+    replaceExtractedEvent(body.event)
+    candidateMessage.value = '予定候補を除外しました'
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : '予定候補の除外でエラーが発生しました'
+  } finally {
+    savingCandidateId.value = ''
+  }
+}
+
+function replaceExtractedEvent(nextEvent: ExtractedEvent) {
+  extractedEvents.value = extractedEvents.value.map((event) =>
+    event.id === nextEvent.id ? nextEvent : event,
+  )
+  eventDrafts.value = {
+    ...eventDrafts.value,
+    [nextEvent.id]: toEventDraft(nextEvent),
   }
 }
 
@@ -316,14 +457,73 @@ onMounted(loadMe)
       </section>
 
       <section v-if="user && extractedEvents.length > 0" class="letters-section">
-        <p class="label">抽出された予定候補</p>
-        <article v-for="event in extractedEvents" :key="event.id" class="candidate-card">
-          <h3>{{ event.title }}</h3>
-          <p>{{ new Date(event.event_date).toLocaleDateString('ja-JP') }}</p>
-          <p v-if="event.description">{{ event.description }}</p>
-          <p class="source-text">confidence: {{ event.confidence.toFixed(2) }}</p>
-          <p class="source-text">{{ event.source_text }}</p>
+        <p class="label">予定候補の確認</p>
+        <article
+          v-for="event in extractedEvents"
+          :key="event.id"
+          class="candidate-card"
+          :class="{ ignored: event.status === 'ignored' }"
+        >
+          <div class="candidate-heading">
+            <div>
+              <p class="status-chip">{{ event.status }}</p>
+              <h3>{{ event.title }}</h3>
+            </div>
+            <p v-if="event.confidence < 0.7" class="warning-chip">要確認</p>
+          </div>
+
+          <form v-if="eventDrafts[event.id]" class="candidate-form" @submit.prevent="saveExtractedEvent(event)">
+            <label>
+              予定名
+              <input v-model="eventDrafts[event.id].title" required type="text" />
+            </label>
+            <label>
+              日付
+              <input v-model="eventDrafts[event.id].event_date" required type="date" />
+            </label>
+            <label class="checkbox-label">
+              <input v-model="eventDrafts[event.id].is_all_day" type="checkbox" />
+              終日予定
+            </label>
+            <div v-if="!eventDrafts[event.id].is_all_day" class="time-grid">
+              <label>
+                開始
+                <input v-model="eventDrafts[event.id].start_time" required type="time" />
+              </label>
+              <label>
+                終了
+                <input v-model="eventDrafts[event.id].end_time" required type="time" />
+              </label>
+            </div>
+            <label>
+              場所
+              <input v-model="eventDrafts[event.id].location" type="text" placeholder="保育園" />
+            </label>
+            <label>
+              説明
+              <textarea v-model="eventDrafts[event.id].description" rows="3"></textarea>
+            </label>
+            <div class="candidate-actions">
+              <button class="google-button" :disabled="savingCandidateId === event.id" type="submit">
+                {{ savingCandidateId === event.id ? '保存中...' : '保存' }}
+              </button>
+              <button
+                class="ghost-button"
+                :disabled="savingCandidateId === event.id || event.status === 'ignored'"
+                type="button"
+                @click="ignoreExtractedEvent(event)"
+              >
+                除外する
+              </button>
+            </div>
+          </form>
+
+          <div class="source-box">
+            <p>confidence: {{ event.confidence.toFixed(2) }}</p>
+            <p>{{ event.source_text || '元テキストはありません。' }}</p>
+          </div>
         </article>
+        <p v-if="candidateMessage" class="success">{{ candidateMessage }}</p>
       </section>
 
       <form v-if="user" class="event-form" @submit.prevent="createManualEvent">
