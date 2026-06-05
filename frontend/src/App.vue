@@ -18,6 +18,19 @@ type Letter = {
   object_url?: string
 }
 
+type ExtractedEvent = {
+  id: string
+  letter_id: string
+  title: string
+  event_date: string
+  start_time: string | null
+  end_time: string | null
+  is_all_day: boolean
+  description: string
+  confidence: number
+  source_text: string
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const user = ref<User | null>(null)
 const loading = ref(true)
@@ -26,7 +39,10 @@ const eventMessage = ref('')
 const savingEvent = ref(false)
 const letterMessage = ref('')
 const uploadingLetter = ref(false)
+const extractingLetterId = ref('')
 const letters = ref<Letter[]>([])
+const extractedEvents = ref<ExtractedEvent[]>([])
+const ocrTextByLetter = ref<Record<string, string>>({})
 const letterTitle = ref('')
 const letterImage = ref<File | null>(null)
 const manualEvent = ref({
@@ -78,6 +94,8 @@ async function logout() {
   user.value = null
   clearLetterObjectUrls()
   letters.value = []
+  extractedEvents.value = []
+  ocrTextByLetter.value = {}
 }
 
 function onLetterImageChange(event: Event) {
@@ -119,6 +137,42 @@ async function uploadLetter() {
       error instanceof Error ? error.message : 'おたより画像のアップロードでエラーが発生しました'
   } finally {
     uploadingLetter.value = false
+  }
+}
+
+async function extractEvents(letter: Letter) {
+  const ocrText = ocrTextByLetter.value[letter.id]?.trim()
+  if (!ocrText) {
+    errorMessage.value = 'OCRテキストを入力してください'
+    return
+  }
+
+  extractingLetterId.value = letter.id
+  letterMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/letters/${letter.id}/extract-events`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ocr_text: ocrText }),
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? '予定候補を抽出できませんでした')
+    }
+
+    const body = (await response.json()) as { events: ExtractedEvent[] }
+    extractedEvents.value = body.events
+    letterMessage.value = '予定候補をdraftとして保存しました'
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : '予定候補の抽出でエラーが発生しました'
+  } finally {
+    extractingLetterId.value = ''
   }
 }
 
@@ -240,6 +294,35 @@ onMounted(loadMe)
             <h3>{{ letter.title || '無題のおたより' }}</h3>
             <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
           </div>
+          <div class="ocr-panel">
+            <label>
+              OCRテキスト
+              <textarea
+                v-model="ocrTextByLetter[letter.id]"
+                rows="4"
+                placeholder="6月12日（金）身体測定を行います。"
+              ></textarea>
+            </label>
+            <button
+              class="ghost-button"
+              :disabled="extractingLetterId === letter.id"
+              type="button"
+              @click="extractEvents(letter)"
+            >
+              {{ extractingLetterId === letter.id ? '抽出中...' : '予定候補を抽出' }}
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section v-if="user && extractedEvents.length > 0" class="letters-section">
+        <p class="label">抽出された予定候補</p>
+        <article v-for="event in extractedEvents" :key="event.id" class="candidate-card">
+          <h3>{{ event.title }}</h3>
+          <p>{{ new Date(event.event_date).toLocaleDateString('ja-JP') }}</p>
+          <p v-if="event.description">{{ event.description }}</p>
+          <p class="source-text">confidence: {{ event.confidence.toFixed(2) }}</p>
+          <p class="source-text">{{ event.source_text }}</p>
         </article>
       </section>
 

@@ -16,5 +16,6 @@ func Migrate(db *gorm.DB) error {
 		&model.GoogleToken{},
 		&model.Letter{},
 		&model.ManualEvent{},
+		&model.ExtractedEvent{},
 	)
 }

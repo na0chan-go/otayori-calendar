@@ -201,6 +201,7 @@ npm run dev
 | POST | `/api/letters` | おたより画像をアップロードする |
 | GET | `/api/letters` | 自分のおたより画像一覧を返す |
 | GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
+| POST | `/api/letters/:id/extract-events` | OCRテキストまたはAI JSON出力から予定候補を抽出しdraft保存する |
 | POST | `/auth/logout` | セッションCookieを削除する |
 
 ## License

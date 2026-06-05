@@ -4,6 +4,15 @@
 
 OCR結果から、Googleカレンダーに登録できる予定候補を抽出する。
 
+## MVP Policy
+
+Issue #4の段階では、外部OCR/AI APIを直接呼び出さず、以下の2経路で予定候補を作成する。
+
+- OCR済みテキストをAPIに渡し、日付を含む行から予定候補を抽出する
+- AI APIのJSON出力をAPIに渡し、保存前にスキーマ検証する
+
+外部OCR/AI APIの接続は、プロンプト・JSONスキーマ・バリデーション境界を固定した後の拡張として扱う。
+
 ## Input Example
 
 ```text
@@ -61,6 +70,30 @@ AI出力をそのままGoogleカレンダーに登録しない。
 
 AIに自由文で返させず、JSON形式で返させる。
 不明な値は推測しすぎず、nullとして返す。
+
+```text
+あなたは保育園のおたよりから予定候補を抽出するアシスタントです。
+次のOCRテキストから、日付がある予定候補だけを抽出してください。
+出力は必ずJSONのみとし、説明文やMarkdownを含めないでください。
+不明な値はnullにしてください。
+
+JSON schema:
+{
+  "events": [
+    {
+      "title": "string",
+      "date": "YYYY-MM-DD",
+      "start_time": "HH:MM|null",
+      "end_time": "HH:MM|null",
+      "is_all_day": true,
+      "location": "string",
+      "description": "string",
+      "confidence": 0.0,
+      "source_text": "string"
+    }
+  ]
+}
+```
 
 ## Validation
 
