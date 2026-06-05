@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
 )
 
 func TestBuildManualEventAllDay(t *testing.T) {
@@ -90,5 +91,41 @@ func TestBuildManualEventRejectsInvalidTimeRange(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected invalid time range error")
+	}
+}
+
+func TestBuildGoogleEventFromManualEventAllDay(t *testing.T) {
+	server := newTestServer()
+	manualEvent := model.ManualEvent{
+		Title:     "身体測定",
+		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		IsAllDay:  true,
+		TimeZone:  "Asia/Tokyo",
+	}
+
+	googleEvent, err := server.buildGoogleEventFromManualEvent(manualEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if googleEvent.Start.Date != "2026-06-12" {
+		t.Fatalf("expected start date, got %q", googleEvent.Start.Date)
+	}
+	if googleEvent.End.Date != "2026-06-13" {
+		t.Fatalf("expected next-day end date, got %q", googleEvent.End.Date)
+	}
+}
+
+func TestBuildGoogleEventFromManualEventRejectsIncompleteTimedEvent(t *testing.T) {
+	server := newTestServer()
+
+	_, err := server.buildGoogleEventFromManualEvent(model.ManualEvent{
+		Title:     "保護者会",
+		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		IsAllDay:  false,
+		TimeZone:  "Asia/Tokyo",
+	})
+	if err == nil {
+		t.Fatal("expected incomplete timed event error")
 	}
 }

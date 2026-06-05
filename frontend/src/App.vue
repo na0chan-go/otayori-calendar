@@ -43,6 +43,23 @@ type ExtractedEventDraft = {
   description: string
 }
 
+type CalendarEvent = {
+  id: string
+  source_type: 'manual' | 'extracted'
+  title: string
+  event_date: string
+  start_at: string | null
+  end_at: string | null
+  is_all_day: boolean
+  location: string
+  description: string
+  time_zone: string
+  google_calendar_event_id: string
+  status: 'registered' | 'failed'
+  created_at: string
+  updated_at: string
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const user = ref<User | null>(null)
 const loading = ref(true)
@@ -54,8 +71,11 @@ const uploadingLetter = ref(false)
 const extractingLetterId = ref('')
 const savingCandidateId = ref('')
 const candidateMessage = ref('')
+const calendarMessage = ref('')
+const retryingCalendarEventId = ref('')
 const letters = ref<Letter[]>([])
 const extractedEvents = ref<ExtractedEvent[]>([])
+const calendarEvents = ref<CalendarEvent[]>([])
 const eventDrafts = ref<Record<string, ExtractedEventDraft>>({})
 const ocrTextByLetter = ref<Record<string, string>>({})
 const letterTitle = ref('')
@@ -89,7 +109,7 @@ async function loadMe() {
 
     const body = (await response.json()) as { user: User }
     user.value = body.user
-    await Promise.all([loadLetters(), loadExtractedEvents()])
+    await Promise.all([loadLetters(), loadExtractedEvents(), loadCalendarEvents()])
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '予期しないエラーが発生しました'
   } finally {
@@ -110,6 +130,7 @@ async function logout() {
   clearLetterObjectUrls()
   letters.value = []
   extractedEvents.value = []
+  calendarEvents.value = []
   eventDrafts.value = {}
   ocrTextByLetter.value = {}
 }
@@ -317,6 +338,58 @@ function replaceExtractedEvent(nextEvent: ExtractedEvent) {
   }
 }
 
+async function loadCalendarEvents() {
+  const response = await fetch(`${apiBaseUrl}/api/calendar-events`, {
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    throw new Error('登録済み予定一覧を取得できませんでした')
+  }
+
+  const body = (await response.json()) as { events: CalendarEvent[] }
+  calendarEvents.value = body.events
+}
+
+async function retryCalendarEvent(event: CalendarEvent) {
+  retryingCalendarEventId.value = event.id
+  calendarMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/manual-events/${event.id}/retry`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? '予定の再登録に失敗しました')
+    }
+
+    calendarMessage.value = '失敗していた予定をGoogleカレンダーへ登録しました'
+    await loadCalendarEvents()
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '予定の再登録でエラーが発生しました'
+  } finally {
+    retryingCalendarEventId.value = ''
+  }
+}
+
+function canRetryCalendarEvent(event: CalendarEvent) {
+  return event.status === 'failed' && event.source_type === 'manual'
+}
+
+function formatCalendarEventTime(event: CalendarEvent) {
+  if (event.is_all_day) return '終日'
+  const start = event.start_at ? new Date(event.start_at).toLocaleTimeString('ja-JP', timeFormatOptions) : '未設定'
+  const end = event.end_at ? new Date(event.end_at).toLocaleTimeString('ja-JP', timeFormatOptions) : '未設定'
+  return `${start} - ${end}`
+}
+
+const timeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+} as const
+
 async function loadLetters() {
   const response = await fetch(`${apiBaseUrl}/api/letters`, {
     credentials: 'include',
@@ -373,6 +446,7 @@ async function createManualEvent() {
     }
 
     eventMessage.value = 'Googleカレンダーに登録しました'
+    await loadCalendarEvents()
     manualEvent.value = {
       title: '',
       event_date: '',
@@ -524,6 +598,44 @@ onMounted(loadMe)
           </div>
         </article>
         <p v-if="candidateMessage" class="success">{{ candidateMessage }}</p>
+      </section>
+
+      <section v-if="user" class="letters-section">
+        <p class="label">登録済み・失敗予定</p>
+        <div v-if="calendarEvents.length === 0" class="empty-state">
+          まだGoogleカレンダー登録済みの予定はありません。
+        </div>
+        <article
+          v-for="event in calendarEvents"
+          :key="`${event.source_type}-${event.id}`"
+          class="registered-event-card"
+          :class="{ failed: event.status === 'failed' }"
+        >
+          <div class="candidate-heading">
+            <div>
+              <p class="status-chip">{{ event.status }}</p>
+              <h3>{{ event.title }}</h3>
+            </div>
+            <p class="source-type-chip">{{ event.source_type === 'manual' ? '手入力' : 'おたより候補' }}</p>
+          </div>
+          <p>{{ new Date(event.event_date).toLocaleDateString('ja-JP') }} / {{ formatCalendarEventTime(event) }}</p>
+          <p v-if="event.location">{{ event.location }}</p>
+          <p v-if="event.description">{{ event.description }}</p>
+          <p v-if="event.google_calendar_event_id" class="source-text">
+            Google Event ID: {{ event.google_calendar_event_id }}
+          </p>
+          <p v-else class="error">Googleカレンダー登録に失敗しています。</p>
+          <button
+            v-if="canRetryCalendarEvent(event)"
+            class="ghost-button"
+            :disabled="retryingCalendarEventId === event.id"
+            type="button"
+            @click="retryCalendarEvent(event)"
+          >
+            {{ retryingCalendarEventId === event.id ? '再実行中...' : '再登録する' }}
+          </button>
+        </article>
+        <p v-if="calendarMessage" class="success">{{ calendarMessage }}</p>
       </section>
 
       <form v-if="user" class="event-form" @submit.prevent="createManualEvent">

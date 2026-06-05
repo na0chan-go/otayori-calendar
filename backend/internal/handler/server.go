@@ -59,6 +59,8 @@ func (s *Server) routes() {
 	s.POST("/api/auth/logout", s.logout)
 	s.GET("/api/me", s.me)
 	s.POST("/api/manual-events", s.createManualEvent)
+	s.POST("/api/manual-events/:id/retry", s.retryManualEvent)
+	s.GET("/api/calendar-events", s.listCalendarEvents)
 	s.POST("/api/letters", s.uploadLetter)
 	s.GET("/api/letters", s.listLetters)
 	s.GET("/api/letters/:id/image", s.showLetterImage)
