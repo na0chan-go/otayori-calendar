@@ -14,6 +14,7 @@ const (
 	ExtractedEventStatusRegistered = "registered"
 	ExtractedEventStatusIgnored    = "ignored"
 	ExtractedEventStatusFailed     = "failed"
+	ExtractedEventStatusDeleted    = "deleted"
 )
 
 type ExtractedEvent struct {

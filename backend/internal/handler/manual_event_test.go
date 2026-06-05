@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
+	calendar "google.golang.org/api/calendar/v3"
+	"google.golang.org/api/googleapi"
 )
 
 func TestBuildManualEventAllDay(t *testing.T) {
@@ -127,5 +129,40 @@ func TestBuildGoogleEventFromManualEventRejectsIncompleteTimedEvent(t *testing.T
 	})
 	if err == nil {
 		t.Fatal("expected incomplete timed event error")
+	}
+}
+
+func TestHasRegisteredCalendarEvent(t *testing.T) {
+	if hasRegisteredCalendarEvent([]model.ManualEvent{
+		{Status: model.ManualEventStatusFailed, GoogleCalendarEventID: ""},
+		{Status: model.ManualEventStatusDeleted, GoogleCalendarEventID: "deleted-event-id"},
+	}, nil) {
+		t.Fatal("failed or deleted events should not require existence sync")
+	}
+
+	if !hasRegisteredCalendarEvent([]model.ManualEvent{
+		{Status: model.ManualEventStatusRegistered, GoogleCalendarEventID: "registered-event-id"},
+	}, nil) {
+		t.Fatal("registered events with google event id should require existence sync")
+	}
+}
+
+func TestGoogleCalendarEventExistsFromResultTreatsCancelledAsDeleted(t *testing.T) {
+	exists, err := googleCalendarEventExistsFromResult(&calendar.Event{Status: "cancelled"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("cancelled google calendar event should be treated as deleted")
+	}
+}
+
+func TestGoogleCalendarEventExistsFromResultTreatsNotFoundAsDeleted(t *testing.T) {
+	exists, err := googleCalendarEventExistsFromResult(nil, &googleapi.Error{Code: 404})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("not found google calendar event should be treated as deleted")
 	}
 }

@@ -55,7 +55,7 @@ type CalendarEvent = {
   description: string
   time_zone: string
   google_calendar_event_id: string
-  status: 'registered' | 'failed'
+  status: 'registered' | 'failed' | 'deleted'
   created_at: string
   updated_at: string
 }
@@ -375,7 +375,7 @@ async function retryCalendarEvent(event: CalendarEvent) {
 }
 
 function canRetryCalendarEvent(event: CalendarEvent) {
-  return event.status === 'failed' && event.source_type === 'manual'
+  return (event.status === 'failed' || event.status === 'deleted') && event.source_type === 'manual'
 }
 
 function formatCalendarEventTime(event: CalendarEvent) {
@@ -609,7 +609,7 @@ onMounted(loadMe)
           v-for="event in calendarEvents"
           :key="`${event.source_type}-${event.id}`"
           class="registered-event-card"
-          :class="{ failed: event.status === 'failed' }"
+          :class="{ failed: event.status === 'failed', deleted: event.status === 'deleted' }"
         >
           <div class="candidate-heading">
             <div>
@@ -624,7 +624,10 @@ onMounted(loadMe)
           <p v-if="event.google_calendar_event_id" class="source-text">
             Google Event ID: {{ event.google_calendar_event_id }}
           </p>
-          <p v-else class="error">Googleカレンダー登録に失敗しています。</p>
+          <p v-if="event.status === 'deleted'" class="error">
+            Googleカレンダー上で削除されています。
+          </p>
+          <p v-else-if="!event.google_calendar_event_id" class="error">Googleカレンダー登録に失敗しています。</p>
           <button
             v-if="canRetryCalendarEvent(event)"
             class="ghost-button"

@@ -85,3 +85,5 @@ google_calendar_event_id
 - 登録失敗時は `status = failed` にする
 - 失敗理由はログまたは別カラムで管理する
 - failedの予定は再登録できるようにする
+- Googleカレンダー上で削除済みの場合は `status = deleted` にする
+- deletedの予定は重複ではないため、再登録できるようにする

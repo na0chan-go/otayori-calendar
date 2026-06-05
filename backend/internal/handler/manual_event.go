@@ -13,6 +13,7 @@ import (
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
 	"golang.org/x/oauth2"
 	calendar "google.golang.org/api/calendar/v3"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -44,6 +45,10 @@ type calendarEventResponse struct {
 	Status                string     `json:"status"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
+}
+
+type googleCalendarEventGetter interface {
+	Get(calendarID string, eventID string) *calendar.EventsGetCall
 }
 
 func (s *Server) createManualEvent(c echo.Context) error {
@@ -111,11 +116,11 @@ func (s *Server) retryManualEvent(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load manual event")
 	}
 
-	if manualEvent.GoogleCalendarEventID != "" {
+	if manualEvent.GoogleCalendarEventID != "" && manualEvent.Status != model.ManualEventStatusDeleted {
 		return echo.NewHTTPError(http.StatusConflict, "event is already registered")
 	}
-	if manualEvent.Status != model.ManualEventStatusFailed {
-		return echo.NewHTTPError(http.StatusConflict, "only failed events can be retried")
+	if manualEvent.Status != model.ManualEventStatusFailed && manualEvent.Status != model.ManualEventStatusDeleted {
+		return echo.NewHTTPError(http.StatusConflict, "only failed or deleted events can be retried")
 	}
 
 	googleEvent, err := s.buildGoogleEventFromManualEvent(manualEvent)
@@ -163,6 +168,7 @@ func (s *Server) listCalendarEvents(c echo.Context) error {
 		Where("user_id = ? AND status IN ?", userID, []string{
 			model.ManualEventStatusRegistered,
 			model.ManualEventStatusFailed,
+			model.ManualEventStatusDeleted,
 		}).
 		Order("event_date ASC, created_at DESC").
 		Find(&manualEvents).Error; err != nil {
@@ -175,11 +181,14 @@ func (s *Server) listCalendarEvents(c echo.Context) error {
 		Where("letters.user_id = ? AND extracted_events.status IN ?", userID, []string{
 			model.ExtractedEventStatusRegistered,
 			model.ExtractedEventStatusFailed,
+			model.ExtractedEventStatusDeleted,
 		}).
 		Order("extracted_events.event_date ASC, extracted_events.created_at DESC").
 		Find(&extractedEvents).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load calendar events")
 	}
+
+	_ = s.syncCalendarEventExistence(c.Request().Context(), userID, manualEvents, extractedEvents)
 
 	events := make([]calendarEventResponse, 0, len(manualEvents)+len(extractedEvents))
 	for _, event := range manualEvents {
@@ -196,6 +205,73 @@ func (s *Server) listCalendarEvents(c echo.Context) error {
 	})
 
 	return c.JSON(http.StatusOK, map[string]any{"events": events})
+}
+
+func (s *Server) syncCalendarEventExistence(ctx context.Context, userID uuid.UUID, manualEvents []model.ManualEvent, extractedEvents []model.ExtractedEvent) error {
+	if !hasRegisteredCalendarEvent(manualEvents, extractedEvents) {
+		return nil
+	}
+
+	googleToken, err := s.loadGoogleToken(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	calendarEvents, err := s.googleCalendarEventsGetter(ctx, userID, googleToken)
+	if err != nil {
+		return err
+	}
+
+	for index := range manualEvents {
+		if manualEvents[index].Status != model.ManualEventStatusRegistered || manualEvents[index].GoogleCalendarEventID == "" {
+			continue
+		}
+		exists, err := s.googleCalendarEventExists(calendarEvents, manualEvents[index].GoogleCalendarEventID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			manualEvents[index].Status = model.ManualEventStatusDeleted
+			if err := s.db.WithContext(ctx).Model(&manualEvents[index]).Update("status", model.ManualEventStatusDeleted).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	for index := range extractedEvents {
+		if extractedEvents[index].Status != model.ExtractedEventStatusRegistered || extractedEvents[index].GoogleCalendarEventID == "" {
+			continue
+		}
+		exists, err := s.googleCalendarEventExists(calendarEvents, extractedEvents[index].GoogleCalendarEventID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			extractedEvents[index].Status = model.ExtractedEventStatusDeleted
+			if err := s.db.WithContext(ctx).Model(&extractedEvents[index]).Update("status", model.ExtractedEventStatusDeleted).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func hasRegisteredCalendarEvent(manualEvents []model.ManualEvent, extractedEvents []model.ExtractedEvent) bool {
+	for _, event := range manualEvents {
+		if event.Status == model.ManualEventStatusRegistered && event.GoogleCalendarEventID != "" {
+			return true
+		}
+	}
+	for _, event := range extractedEvents {
+		if event.Status == model.ExtractedEventStatusRegistered && event.GoogleCalendarEventID != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) buildManualEvent(userID uuid.UUID, req manualEventRequest) (model.ManualEvent, *calendar.Event, error) {
@@ -344,6 +420,47 @@ func (s *Server) insertGoogleCalendarEvent(ctx context.Context, userID uuid.UUID
 	}
 
 	return service.Events.Insert(s.cfg.GoogleCalendarID, event).Do()
+}
+
+func (s *Server) googleCalendarEventsGetter(ctx context.Context, userID uuid.UUID, token *oauth2.Token) (googleCalendarEventGetter, error) {
+	oauthConfig, err := s.cfg.GoogleOAuthConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	tokenSource := oauthConfig.TokenSource(ctx, token)
+	freshToken, err := tokenSource.Token()
+	if err != nil {
+		return nil, err
+	}
+	if err := s.saveGoogleToken(ctx, userID, freshToken, token.RefreshToken); err != nil {
+		return nil, err
+	}
+
+	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(freshToken))
+	service, err := calendar.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		return nil, err
+	}
+
+	return service.Events, nil
+}
+
+func (s *Server) googleCalendarEventExists(events googleCalendarEventGetter, eventID string) (bool, error) {
+	event, err := events.Get(s.cfg.GoogleCalendarID, eventID).Do()
+	return googleCalendarEventExistsFromResult(event, err)
+}
+
+func googleCalendarEventExistsFromResult(event *calendar.Event, err error) (bool, error) {
+	if err == nil {
+		return event == nil || event.Status != "cancelled", nil
+	}
+
+	var googleErr *googleapi.Error
+	if errors.As(err, &googleErr) && (googleErr.Code == http.StatusNotFound || googleErr.Code == http.StatusGone) {
+		return false, nil
+	}
+	return false, err
 }
 
 func newManualCalendarEventResponse(event model.ManualEvent) calendarEventResponse {
