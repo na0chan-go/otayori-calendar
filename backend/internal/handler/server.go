@@ -62,6 +62,7 @@ func (s *Server) routes() {
 	s.POST("/api/letters", s.uploadLetter)
 	s.GET("/api/letters", s.listLetters)
 	s.GET("/api/letters/:id/image", s.showLetterImage)
+	s.POST("/api/letters/:id/extract-events", s.extractLetterEvents)
 }
 
 func (s *Server) healthz(c echo.Context) error {
