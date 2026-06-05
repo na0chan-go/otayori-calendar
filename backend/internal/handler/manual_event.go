@@ -242,16 +242,17 @@ func (s *Server) syncCalendarEventExistence(ctx context.Context, userID uuid.UUI
 	}
 
 	for index := range extractedEvents {
-		if extractedEvents[index].Status != model.ExtractedEventStatusRegistered || extractedEvents[index].GoogleCalendarEventID == "" {
+		if extractedEvents[index].Status == model.ExtractedEventStatusDeleted || extractedEvents[index].GoogleCalendarEventID == "" {
 			continue
 		}
 		exists, err := s.googleCalendarEventExists(calendarEvents, extractedEvents[index].GoogleCalendarEventID)
 		if err != nil {
 			return err
 		}
-		if !exists {
-			extractedEvents[index].Status = model.ExtractedEventStatusDeleted
-			if err := s.db.WithContext(ctx).Model(&extractedEvents[index]).Update("status", model.ExtractedEventStatusDeleted).Error; err != nil {
+		nextStatus := syncedExtractedEventStatus(exists)
+		if extractedEvents[index].Status != nextStatus {
+			extractedEvents[index].Status = nextStatus
+			if err := s.db.WithContext(ctx).Model(&extractedEvents[index]).Update("status", nextStatus).Error; err != nil {
 				return err
 			}
 		}
@@ -267,11 +268,18 @@ func hasRegisteredCalendarEvent(manualEvents []model.ManualEvent, extractedEvent
 		}
 	}
 	for _, event := range extractedEvents {
-		if event.Status == model.ExtractedEventStatusRegistered && event.GoogleCalendarEventID != "" {
+		if event.Status != model.ExtractedEventStatusDeleted && event.GoogleCalendarEventID != "" {
 			return true
 		}
 	}
 	return false
+}
+
+func syncedExtractedEventStatus(googleCalendarEventExists bool) string {
+	if googleCalendarEventExists {
+		return model.ExtractedEventStatusRegistered
+	}
+	return model.ExtractedEventStatusDeleted
 }
 
 func (s *Server) buildManualEvent(userID uuid.UUID, req manualEventRequest) (model.ManualEvent, *calendar.Event, error) {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -123,5 +124,35 @@ func TestBuildGoogleEventFromExtractedEventRejectsIncompleteTimedEvent(t *testin
 	})
 	if err == nil {
 		t.Fatal("expected incomplete timed event error")
+	}
+}
+
+func TestValidateExtractedEventRegisterableAllowsConfirmedFailedAndDeleted(t *testing.T) {
+	for _, status := range []string{
+		model.ExtractedEventStatusConfirmed,
+		model.ExtractedEventStatusFailed,
+		model.ExtractedEventStatusDeleted,
+	} {
+		t.Run(status, func(t *testing.T) {
+			err := validateExtractedEventRegisterable(model.ExtractedEvent{Status: status})
+			if err != nil {
+				t.Fatalf("expected %s to be registerable, got %v", status, err)
+			}
+		})
+	}
+}
+
+func TestValidateExtractedEventRegisterableRejectsDraftAndRegistered(t *testing.T) {
+	err := validateExtractedEventRegisterable(model.ExtractedEvent{Status: model.ExtractedEventStatusDraft})
+	if !errors.Is(err, errExtractedEventNotRegisterable) {
+		t.Fatalf("expected not registerable error, got %v", err)
+	}
+
+	err = validateExtractedEventRegisterable(model.ExtractedEvent{
+		Status:                model.ExtractedEventStatusRegistered,
+		GoogleCalendarEventID: "google-event-id",
+	})
+	if !errors.Is(err, errExtractedEventAlreadyRegistered) {
+		t.Fatalf("expected already registered error, got %v", err)
 	}
 }

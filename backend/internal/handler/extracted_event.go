@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
+	"golang.org/x/oauth2"
 	calendar "google.golang.org/api/calendar/v3"
 	"gorm.io/gorm"
 )
@@ -22,6 +24,36 @@ type updateExtractedEventRequest struct {
 	Location    *string `json:"location"`
 	Description *string `json:"description"`
 }
+
+type bulkExtractedEventsRequest struct {
+	IDs []string `json:"ids"`
+}
+
+type bulkExtractedEventsResponse struct {
+	Events  []model.ExtractedEvent     `json:"events"`
+	Results []bulkExtractedEventResult `json:"results"`
+	Summary bulkExtractedEventsSummary `json:"summary"`
+}
+
+type bulkExtractedEventResult struct {
+	ID      string                `json:"id"`
+	Status  string                `json:"status"`
+	Message string                `json:"message,omitempty"`
+	Event   *model.ExtractedEvent `json:"event,omitempty"`
+}
+
+type bulkExtractedEventsSummary struct {
+	Success int `json:"success"`
+	Failed  int `json:"failed"`
+}
+
+var (
+	errExtractedEventAlreadyRegistered = errors.New("event is already registered")
+	errExtractedEventNotRegisterable   = errors.New("only confirmed, failed, or deleted events can be registered")
+	errGoogleCalendarEventIDMissing    = errors.New("google calendar event id is missing")
+	errGoogleCalendarEventCreateFailed = errors.New("failed to create google calendar event")
+	errSaveExtractedEventFailed        = errors.New("failed to save extracted event")
+)
 
 func (s *Server) listExtractedEvents(c echo.Context) error {
 	userID, err := s.currentUserID(c)
@@ -37,6 +69,8 @@ func (s *Server) listExtractedEvents(c echo.Context) error {
 		Find(&events).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load extracted events")
 	}
+
+	_ = s.syncCalendarEventExistence(c.Request().Context(), userID, nil, events)
 
 	return c.JSON(http.StatusOK, map[string]any{"events": events})
 }
@@ -73,6 +107,46 @@ func (s *Server) updateExtractedEvent(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"event": event})
 }
 
+func (s *Server) bulkConfirmExtractedEvents(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	eventIDs, err := parseBulkExtractedEventIDs(c)
+	if err != nil {
+		return err
+	}
+
+	eventsByID, err := s.loadOwnedExtractedEventsByID(c.Request().Context(), userID, eventIDs)
+	if err != nil {
+		return err
+	}
+
+	response := newBulkExtractedEventsResponse()
+	for _, eventID := range eventIDs {
+		event, ok := eventsByID[eventID]
+		if !ok {
+			response.addFailure(eventID.String(), "extracted event not found")
+			continue
+		}
+		if event.Status == model.ExtractedEventStatusRegistered {
+			response.addFailure(event.ID.String(), "registered events cannot be confirmed")
+			continue
+		}
+
+		event.Status = model.ExtractedEventStatusConfirmed
+		event.GoogleCalendarEventID = ""
+		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
+			response.addFailure(event.ID.String(), "failed to confirm extracted event")
+			continue
+		}
+		response.addSuccess(event, "confirmed")
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
 func (s *Server) ignoreExtractedEvent(c echo.Context) error {
 	userID, err := s.currentUserID(c)
 	if err != nil {
@@ -88,13 +162,57 @@ func (s *Server) ignoreExtractedEvent(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	if event.Status == model.ExtractedEventStatusRegistered {
+		return echo.NewHTTPError(http.StatusConflict, "registered events cannot be ignored")
+	}
 
 	event.Status = model.ExtractedEventStatusIgnored
+	event.GoogleCalendarEventID = ""
 	if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ignore extracted event")
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{"event": event})
+}
+
+func (s *Server) bulkIgnoreExtractedEvents(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	eventIDs, err := parseBulkExtractedEventIDs(c)
+	if err != nil {
+		return err
+	}
+
+	eventsByID, err := s.loadOwnedExtractedEventsByID(c.Request().Context(), userID, eventIDs)
+	if err != nil {
+		return err
+	}
+
+	response := newBulkExtractedEventsResponse()
+	for _, eventID := range eventIDs {
+		event, ok := eventsByID[eventID]
+		if !ok {
+			response.addFailure(eventID.String(), "extracted event not found")
+			continue
+		}
+		if event.Status == model.ExtractedEventStatusRegistered {
+			response.addFailure(event.ID.String(), "registered events cannot be ignored")
+			continue
+		}
+
+		event.Status = model.ExtractedEventStatusIgnored
+		event.GoogleCalendarEventID = ""
+		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
+			response.addFailure(event.ID.String(), "failed to ignore extracted event")
+			continue
+		}
+		response.addSuccess(event, "ignored")
+	}
+
+	return c.JSON(http.StatusOK, response)
 }
 
 func (s *Server) registerExtractedEvent(c echo.Context) error {
@@ -113,18 +231,11 @@ func (s *Server) registerExtractedEvent(c echo.Context) error {
 		return err
 	}
 
-	if event.GoogleCalendarEventID != "" && event.Status != model.ExtractedEventStatusDeleted {
-		return echo.NewHTTPError(http.StatusConflict, "event is already registered")
+	if err := validateExtractedEventRegisterable(event); err != nil {
+		return extractedEventRegisterHTTPError(err)
 	}
-	if event.Status != model.ExtractedEventStatusConfirmed &&
-		event.Status != model.ExtractedEventStatusFailed &&
-		event.Status != model.ExtractedEventStatusDeleted {
-		return echo.NewHTTPError(http.StatusConflict, "only confirmed, failed, or deleted events can be registered")
-	}
-
-	googleEvent, err := s.buildGoogleEventFromExtractedEvent(event)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	if _, err := s.buildGoogleEventFromExtractedEvent(event); err != nil {
+		return extractedEventRegisterHTTPError(err)
 	}
 
 	googleToken, err := s.loadGoogleToken(c.Request().Context(), userID)
@@ -135,25 +246,79 @@ func (s *Server) registerExtractedEvent(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load google token")
 	}
 
-	createdEvent, err := s.insertGoogleCalendarEvent(c.Request().Context(), userID, googleToken, googleEvent)
-	if err != nil {
-		event.Status = model.ExtractedEventStatusFailed
-		_ = s.db.WithContext(c.Request().Context()).Save(&event).Error
-		return echo.NewHTTPError(http.StatusBadGateway, "failed to create google calendar event")
-	}
-	if createdEvent.Id == "" {
-		event.Status = model.ExtractedEventStatusFailed
-		_ = s.db.WithContext(c.Request().Context()).Save(&event).Error
-		return echo.NewHTTPError(http.StatusBadGateway, "google calendar event id is missing")
-	}
-
-	event.GoogleCalendarEventID = createdEvent.Id
-	event.Status = model.ExtractedEventStatusRegistered
-	if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save extracted event")
+	if err := s.registerExtractedEventRecord(c.Request().Context(), userID, googleToken, &event); err != nil {
+		return extractedEventRegisterHTTPError(err)
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{"event": event})
+}
+
+func (s *Server) bulkRegisterExtractedEvents(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	eventIDs, err := parseBulkExtractedEventIDs(c)
+	if err != nil {
+		return err
+	}
+
+	eventsByID, err := s.loadOwnedExtractedEventsByID(c.Request().Context(), userID, eventIDs)
+	if err != nil {
+		return err
+	}
+
+	googleToken, err := s.loadGoogleToken(c.Request().Context(), userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusUnauthorized, "google token not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load google token")
+	}
+
+	response := newBulkExtractedEventsResponse()
+	for _, eventID := range eventIDs {
+		event, ok := eventsByID[eventID]
+		if !ok {
+			response.addFailure(eventID.String(), "extracted event not found")
+			continue
+		}
+
+		if err := s.registerExtractedEventRecord(c.Request().Context(), userID, googleToken, &event); err != nil {
+			response.addFailure(event.ID.String(), err.Error())
+			response.addEvent(event)
+			continue
+		}
+		response.addSuccess(event, "registered")
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+func parseBulkExtractedEventIDs(c echo.Context) ([]uuid.UUID, error) {
+	var req bulkExtractedEventsRequest
+	if err := c.Bind(&req); err != nil {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if len(req.IDs) == 0 {
+		return nil, echo.NewHTTPError(http.StatusBadRequest, "ids are required")
+	}
+
+	eventIDs := make([]uuid.UUID, 0, len(req.IDs))
+	seen := make(map[uuid.UUID]struct{}, len(req.IDs))
+	for _, rawID := range req.IDs {
+		eventID, err := uuid.Parse(strings.TrimSpace(rawID))
+		if err != nil {
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "ids must be valid UUIDs")
+		}
+		if _, ok := seen[eventID]; ok {
+			continue
+		}
+		seen[eventID] = struct{}{}
+		eventIDs = append(eventIDs, eventID)
+	}
+	return eventIDs, nil
 }
 
 func (s *Server) loadOwnedExtractedEvent(c echo.Context, userID uuid.UUID, eventID uuid.UUID) (model.ExtractedEvent, error) {
@@ -168,6 +333,110 @@ func (s *Server) loadOwnedExtractedEvent(c echo.Context, userID uuid.UUID, event
 		return model.ExtractedEvent{}, echo.NewHTTPError(http.StatusInternalServerError, "failed to load extracted event")
 	}
 	return event, nil
+}
+
+func (s *Server) loadOwnedExtractedEventsByID(ctx context.Context, userID uuid.UUID, eventIDs []uuid.UUID) (map[uuid.UUID]model.ExtractedEvent, error) {
+	var events []model.ExtractedEvent
+	if err := s.db.WithContext(ctx).
+		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
+		Where("extracted_events.id IN ? AND letters.user_id = ?", eventIDs, userID).
+		Find(&events).Error; err != nil {
+		return nil, echo.NewHTTPError(http.StatusInternalServerError, "failed to load extracted events")
+	}
+
+	eventsByID := make(map[uuid.UUID]model.ExtractedEvent, len(events))
+	for _, event := range events {
+		eventsByID[event.ID] = event
+	}
+	return eventsByID, nil
+}
+
+func (s *Server) registerExtractedEventRecord(ctx context.Context, userID uuid.UUID, googleToken *oauth2.Token, event *model.ExtractedEvent) error {
+	if err := validateExtractedEventRegisterable(*event); err != nil {
+		return err
+	}
+
+	googleEvent, err := s.buildGoogleEventFromExtractedEvent(*event)
+	if err != nil {
+		return err
+	}
+
+	createdEvent, err := s.insertGoogleCalendarEvent(ctx, userID, googleToken, googleEvent)
+	if err != nil {
+		event.Status = model.ExtractedEventStatusFailed
+		_ = s.db.WithContext(ctx).Save(event).Error
+		return errGoogleCalendarEventCreateFailed
+	}
+	if createdEvent.Id == "" {
+		event.Status = model.ExtractedEventStatusFailed
+		_ = s.db.WithContext(ctx).Save(event).Error
+		return errGoogleCalendarEventIDMissing
+	}
+
+	event.GoogleCalendarEventID = createdEvent.Id
+	event.Status = model.ExtractedEventStatusRegistered
+	if err := s.db.WithContext(ctx).Save(event).Error; err != nil {
+		return errSaveExtractedEventFailed
+	}
+	return nil
+}
+
+func validateExtractedEventRegisterable(event model.ExtractedEvent) error {
+	if event.GoogleCalendarEventID != "" && event.Status != model.ExtractedEventStatusDeleted {
+		return errExtractedEventAlreadyRegistered
+	}
+	if event.Status != model.ExtractedEventStatusConfirmed &&
+		event.Status != model.ExtractedEventStatusFailed &&
+		event.Status != model.ExtractedEventStatusDeleted {
+		return errExtractedEventNotRegisterable
+	}
+
+	return nil
+}
+
+func extractedEventRegisterHTTPError(err error) *echo.HTTPError {
+	switch {
+	case errors.Is(err, errExtractedEventAlreadyRegistered), errors.Is(err, errExtractedEventNotRegisterable):
+		return echo.NewHTTPError(http.StatusConflict, err.Error())
+	case errors.Is(err, errGoogleCalendarEventCreateFailed), errors.Is(err, errGoogleCalendarEventIDMissing):
+		return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+	case errors.Is(err, errSaveExtractedEventFailed):
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+}
+
+func newBulkExtractedEventsResponse() bulkExtractedEventsResponse {
+	return bulkExtractedEventsResponse{
+		Events:  []model.ExtractedEvent{},
+		Results: []bulkExtractedEventResult{},
+		Summary: bulkExtractedEventsSummary{},
+	}
+}
+
+func (r *bulkExtractedEventsResponse) addSuccess(event model.ExtractedEvent, message string) {
+	r.Summary.Success++
+	r.addEvent(event)
+	r.Results = append(r.Results, bulkExtractedEventResult{
+		ID:      event.ID.String(),
+		Status:  "success",
+		Message: message,
+		Event:   &event,
+	})
+}
+
+func (r *bulkExtractedEventsResponse) addFailure(id string, message string) {
+	r.Summary.Failed++
+	r.Results = append(r.Results, bulkExtractedEventResult{
+		ID:      id,
+		Status:  "failed",
+		Message: message,
+	})
+}
+
+func (r *bulkExtractedEventsResponse) addEvent(event model.ExtractedEvent) {
+	r.Events = append(r.Events, event)
 }
 
 func (s *Server) buildGoogleEventFromExtractedEvent(event model.ExtractedEvent) (*calendar.Event, error) {

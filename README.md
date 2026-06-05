@@ -205,6 +205,9 @@ npm run dev
 | GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
 | POST | `/api/letters/:id/extract-events` | OCRテキストまたはAI JSON出力から予定候補を抽出しdraft保存する |
 | GET | `/api/extracted-events` | 自分の予定候補一覧を返す |
+| POST | `/api/extracted-events/bulk-confirm` | 選択した予定候補をまとめてconfirmedにする |
+| POST | `/api/extracted-events/bulk-ignore` | 選択した予定候補をまとめてignoredにする |
+| POST | `/api/extracted-events/bulk-register` | 選択した予定候補をまとめてGoogleカレンダーへ登録し、成功・失敗件数を返す |
 | PATCH | `/api/extracted-events/:id` | 予定候補のタイトル・日付・時間・場所・説明を更新する |
 | POST | `/api/extracted-events/:id/ignore` | 不要な予定候補をignoredにする |
 | POST | `/api/extracted-events/:id/register` | confirmed状態の予定候補をGoogleカレンダーへ登録する |

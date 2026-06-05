@@ -145,6 +145,21 @@ func TestHasRegisteredCalendarEvent(t *testing.T) {
 	}, nil) {
 		t.Fatal("registered events with google event id should require existence sync")
 	}
+
+	if !hasRegisteredCalendarEvent(nil, []model.ExtractedEvent{
+		{Status: model.ExtractedEventStatusConfirmed, GoogleCalendarEventID: "linked-event-id"},
+	}) {
+		t.Fatal("linked extracted events should require existence sync")
+	}
+}
+
+func TestSyncedExtractedEventStatus(t *testing.T) {
+	if got := syncedExtractedEventStatus(true); got != model.ExtractedEventStatusRegistered {
+		t.Fatalf("expected registered status, got %q", got)
+	}
+	if got := syncedExtractedEventStatus(false); got != model.ExtractedEventStatusDeleted {
+		t.Fatalf("expected deleted status, got %q", got)
+	}
 }
 
 func TestGoogleCalendarEventExistsFromResultTreatsCancelledAsDeleted(t *testing.T) {
