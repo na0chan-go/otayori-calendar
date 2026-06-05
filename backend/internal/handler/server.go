@@ -68,6 +68,7 @@ func (s *Server) routes() {
 	s.GET("/api/extracted-events", s.listExtractedEvents)
 	s.PATCH("/api/extracted-events/:id", s.updateExtractedEvent)
 	s.POST("/api/extracted-events/:id/ignore", s.ignoreExtractedEvent)
+	s.POST("/api/extracted-events/:id/register", s.registerExtractedEvent)
 }
 
 func (s *Server) healthz(c echo.Context) error {

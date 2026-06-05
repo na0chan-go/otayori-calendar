@@ -207,6 +207,7 @@ npm run dev
 | GET | `/api/extracted-events` | 自分の予定候補一覧を返す |
 | PATCH | `/api/extracted-events/:id` | 予定候補のタイトル・日付・時間・場所・説明を更新する |
 | POST | `/api/extracted-events/:id/ignore` | 不要な予定候補をignoredにする |
+| POST | `/api/extracted-events/:id/register` | confirmed状態の予定候補をGoogleカレンダーへ登録する |
 | POST | `/auth/logout` | セッションCookieを削除する |
 
 ## License

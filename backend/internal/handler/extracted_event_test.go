@@ -2,6 +2,7 @@ package handler
 
 import (
 	"testing"
+	"time"
 
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
 	"gorm.io/datatypes"
@@ -52,5 +53,75 @@ func TestApplyExtractedEventUpdateRejectsInvalidTimedRange(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected invalid time range error")
+	}
+}
+
+func TestApplyExtractedEventUpdateKeepsRegisteredStatus(t *testing.T) {
+	title := "更新後タイトル"
+	event := model.ExtractedEvent{Status: model.ExtractedEventStatusRegistered, IsAllDay: true}
+
+	err := applyExtractedEventUpdate(&event, updateExtractedEventRequest{Title: &title})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.Status != model.ExtractedEventStatusRegistered {
+		t.Fatalf("expected registered status, got %q", event.Status)
+	}
+}
+
+func TestBuildGoogleEventFromExtractedEventAllDay(t *testing.T) {
+	server := newTestServer()
+
+	googleEvent, err := server.buildGoogleEventFromExtractedEvent(model.ExtractedEvent{
+		Title:     "身体測定",
+		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		IsAllDay:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if googleEvent.Start.Date != "2026-06-12" {
+		t.Fatalf("expected start date, got %q", googleEvent.Start.Date)
+	}
+	if googleEvent.End.Date != "2026-06-13" {
+		t.Fatalf("expected next-day end date, got %q", googleEvent.End.Date)
+	}
+}
+
+func TestBuildGoogleEventFromExtractedEventTimed(t *testing.T) {
+	server := newTestServer()
+	startTime := datatypes.NewTime(15, 0, 0, 0)
+	endTime := datatypes.NewTime(16, 0, 0, 0)
+
+	googleEvent, err := server.buildGoogleEventFromExtractedEvent(model.ExtractedEvent{
+		Title:     "保護者会",
+		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		IsAllDay:  false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if googleEvent.Start.DateTime != "2026-06-12T15:00:00+09:00" {
+		t.Fatalf("expected start dateTime, got %q", googleEvent.Start.DateTime)
+	}
+	if googleEvent.End.DateTime != "2026-06-12T16:00:00+09:00" {
+		t.Fatalf("expected end dateTime, got %q", googleEvent.End.DateTime)
+	}
+}
+
+func TestBuildGoogleEventFromExtractedEventRejectsIncompleteTimedEvent(t *testing.T) {
+	server := newTestServer()
+
+	_, err := server.buildGoogleEventFromExtractedEvent(model.ExtractedEvent{
+		Title:     "保護者会",
+		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		IsAllDay:  false,
+	})
+	if err == nil {
+		t.Fatal("expected incomplete timed event error")
 	}
 }
