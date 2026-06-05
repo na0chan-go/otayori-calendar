@@ -240,6 +240,11 @@ h1 {
   background: rgba(255, 238, 225, 0.82);
 }
 
+.registered-event-card.deleted {
+  border: 1px solid rgba(143, 75, 31, 0.28);
+  background: rgba(247, 223, 185, 0.64);
+}
+
 .registered-event-card h3 {
   margin: 6px 0 0;
 }

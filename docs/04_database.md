@@ -79,6 +79,7 @@ CREATE TABLE extracted_events (
 | registered | Googleカレンダー登録済み |
 | ignored | ユーザーが除外 |
 | failed | 登録失敗 |
+| deleted | Googleカレンダー上で削除済み |
 
 ## Indexes
 
@@ -124,3 +125,4 @@ CREATE TABLE manual_events (
 - `google_calendar_event_id` にはGoogle Calendar APIで作成されたevent IDを保存する。
 - 終日予定は `event_date` と `is_all_day` で表現する。
 - 時刻付き予定は `start_at` / `end_at` に保存する。
+- Googleカレンダー上で手動削除された予定は `status = deleted` として扱う。

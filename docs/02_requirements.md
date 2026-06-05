@@ -54,3 +54,4 @@
 | registered | Googleカレンダー登録済み |
 | ignored | ユーザーが除外 |
 | failed | 登録失敗 |
+| deleted | Googleカレンダー上で削除済み |

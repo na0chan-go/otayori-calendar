@@ -10,6 +10,7 @@ import (
 const (
 	ManualEventStatusRegistered = "registered"
 	ManualEventStatusFailed     = "failed"
+	ManualEventStatusDeleted    = "deleted"
 )
 
 type ManualEvent struct {
