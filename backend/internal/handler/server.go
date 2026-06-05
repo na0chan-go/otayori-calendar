@@ -27,7 +27,7 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{cfg.FrontendURL},
-		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowMethods:     []string{http.MethodGet, http.MethodPatch, http.MethodPost, http.MethodOptions},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 		AllowCredentials: true,
 	}))
@@ -63,6 +63,9 @@ func (s *Server) routes() {
 	s.GET("/api/letters", s.listLetters)
 	s.GET("/api/letters/:id/image", s.showLetterImage)
 	s.POST("/api/letters/:id/extract-events", s.extractLetterEvents)
+	s.GET("/api/extracted-events", s.listExtractedEvents)
+	s.PATCH("/api/extracted-events/:id", s.updateExtractedEvent)
+	s.POST("/api/extracted-events/:id/ignore", s.ignoreExtractedEvent)
 }
 
 func (s *Server) healthz(c echo.Context) error {
