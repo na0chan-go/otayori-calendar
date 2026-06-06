@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import ImagePreparation from '../ImagePreparation.vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
 import type { Letter } from '../../types'
 import { buildLetterProgress } from '../../utils/letterProgress'
@@ -48,7 +49,8 @@ function showLetterCandidates(letter: Letter) {
     </div>
     <form class="surface form-grid upload-form" @submit.prevent="uploadLetter">
       <label>おたよりの名前<input v-model="letterTitle" type="text" placeholder="例：6月のえんだより" /></label>
-      <label class="file-field">画像を選択<input accept="image/jpeg,image/png,image/webp" required type="file" @change="onLetterImageChange" /><span>{{ letterImage?.name || 'JPEG・PNG・WebP' }}</span></label>
+      <label class="file-field">画像を選択・撮影<input accept="image/jpeg,image/png,image/webp" capture="environment" required type="file" @change="onLetterImageChange" /><span>{{ letterImage?.name || 'JPEG・PNG・WebP' }}</span></label>
+      <ImagePreparation v-if="letterImage" :file="letterImage" @change="letterImage = $event" />
       <button class="primary-button" :disabled="uploadingLetter" type="submit">{{ uploadingLetter ? 'アップロード中...' : 'アップロードする' }}</button>
     </form>
   </section>
