@@ -213,6 +213,10 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
           <div>
             <h3>{{ event.title }}</h3>
             <p class="candidate-date">{{ new Date(event.event_date).toLocaleDateString('ja-JP') }}</p>
+            <p v-if="event.belongings" class="candidate-detail-preview">持ち物: {{ event.belongings }}</p>
+            <p v-if="event.submission_deadline" class="candidate-detail-preview">
+              提出期限: {{ new Date(event.submission_deadline).toLocaleDateString('ja-JP') }}
+            </p>
           </div>
         </div>
         <div class="candidate-summary-actions">
@@ -239,7 +243,11 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
             <label>終了<input v-model="eventDrafts[event.id].end_time" required type="time" /></label>
           </div>
           <label>場所<input v-model="eventDrafts[event.id].location" type="text" placeholder="保育園" /></label>
-          <label>説明<textarea v-model="eventDrafts[event.id].description" rows="3"></textarea></label>
+          <div class="candidate-important-fields">
+            <label>持ち物<textarea v-model="eventDrafts[event.id].belongings" rows="2" placeholder="水筒、帽子、着替え"></textarea></label>
+            <label>提出期限<input v-model="eventDrafts[event.id].submission_deadline" type="date" /></label>
+          </div>
+          <label>その他の注意事項<textarea v-model="eventDrafts[event.id].description" rows="3"></textarea></label>
         </fieldset>
         <div class="candidate-actions">
           <button v-if="event.status !== 'ignored'" class="primary-button" :disabled="savingCandidateId === event.id || !canEditExtractedEvent(event)" type="submit">

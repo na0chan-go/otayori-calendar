@@ -235,6 +235,12 @@
   font-size: 0.9rem;
 }
 
+.candidate-detail-preview {
+  margin-top: 4px !important;
+  color: var(--ink) !important;
+  font-size: 0.8rem;
+}
+
 .candidate-expand-button {
   white-space: nowrap;
 }
@@ -258,6 +264,14 @@
   margin: 0;
   border: 0;
   padding: 0;
+}
+
+.candidate-important-fields {
+  display: grid;
+  gap: 12px;
+  border-radius: 16px;
+  background: var(--sand);
+  padding: 14px;
 }
 
 .candidate-fields:disabled {

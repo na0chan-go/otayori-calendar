@@ -14,6 +14,8 @@ func TestApplyExtractedEventUpdateConfirmsAndClearsAllDayTimes(t *testing.T) {
 	end := datatypes.NewTime(10, 0, 0, 0)
 	isAllDay := true
 	title := " 身体測定 "
+	belongings := " 水筒、帽子 "
+	deadline := "2026-06-10"
 
 	event := model.ExtractedEvent{
 		Title:     "仮タイトル",
@@ -23,8 +25,10 @@ func TestApplyExtractedEventUpdateConfirmsAndClearsAllDayTimes(t *testing.T) {
 	}
 
 	err := applyExtractedEventUpdate(&event, updateExtractedEventRequest{
-		Title:    &title,
-		IsAllDay: &isAllDay,
+		Title:              &title,
+		IsAllDay:           &isAllDay,
+		Belongings:         &belongings,
+		SubmissionDeadline: &deadline,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -38,6 +42,12 @@ func TestApplyExtractedEventUpdateConfirmsAndClearsAllDayTimes(t *testing.T) {
 	}
 	if event.Status != model.ExtractedEventStatusConfirmed {
 		t.Fatalf("expected confirmed status, got %q", event.Status)
+	}
+	if event.Belongings != "水筒、帽子" {
+		t.Fatalf("expected trimmed belongings, got %q", event.Belongings)
+	}
+	if event.SubmissionDeadline == nil || event.SubmissionDeadline.Format("2006-01-02") != deadline {
+		t.Fatalf("expected submission deadline, got %#v", event.SubmissionDeadline)
 	}
 }
 
@@ -102,11 +112,15 @@ func TestValidateExtractedEventStatusRestoreRejectsChangedOrCalendarStatuses(t *
 
 func TestBuildGoogleEventFromExtractedEventAllDay(t *testing.T) {
 	server := newTestServer()
+	deadline := time.Date(2026, 6, 10, 0, 0, 0, 0, time.UTC)
 
 	googleEvent, err := server.buildGoogleEventFromExtractedEvent(model.ExtractedEvent{
-		Title:     "身体測定",
-		EventDate: time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
-		IsAllDay:  true,
+		Title:              "身体測定",
+		EventDate:          time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC),
+		IsAllDay:           true,
+		Description:        "薄着で登園",
+		Belongings:         "水筒、帽子",
+		SubmissionDeadline: &deadline,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,6 +131,10 @@ func TestBuildGoogleEventFromExtractedEventAllDay(t *testing.T) {
 	}
 	if googleEvent.End.Date != "2026-06-13" {
 		t.Fatalf("expected next-day end date, got %q", googleEvent.End.Date)
+	}
+	expectedDescription := "薄着で登園\n\n持ち物: 水筒、帽子\n\n提出期限: 2026年6月10日"
+	if googleEvent.Description != expectedDescription {
+		t.Fatalf("expected structured description, got %q", googleEvent.Description)
 	}
 }
 

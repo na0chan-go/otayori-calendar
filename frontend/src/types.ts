@@ -27,6 +27,8 @@ export type ExtractedEvent = {
   is_all_day: boolean
   location: string
   description: string
+  belongings: string
+  submission_deadline: string | null
   confidence: number
   source_text: string
   status: string
@@ -40,6 +42,8 @@ export type ExtractedEventDraft = {
   is_all_day: boolean
   location: string
   description: string
+  belongings: string
+  submission_deadline: string
 }
 
 export type LetterProgress = {

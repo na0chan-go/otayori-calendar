@@ -148,7 +148,8 @@ func (g *GeminiExtractor) Extract(ctx context.Context, input GeminiExtractionReq
 
 func extractionPrompt(referenceYear int) string {
 	return fmt.Sprintf(`保育園のおたよりから、日付がある予定候補だけを抽出してください。
-持ち物や注意事項は description に含め、抽出根拠の原文は source_text に含めてください。
+持ち物は belongings、提出期限は submission_deadline、その他の注意事項は description に分けてください。
+抽出根拠の原文は source_text に含めてください。
 不明な値は推測しすぎず、空文字または null にしてください。
 年が書かれていない場合は %d 年として解釈してください。
 個人名など、予定に不要な個人情報は出力しないでください。`, referenceYear)
@@ -167,19 +168,21 @@ func extractionResponseSchema() map[string]any {
 				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"title":       map[string]any{"type": "string"},
-						"date":        map[string]any{"type": "string", "format": "date"},
-						"start_time":  nullableString,
-						"end_time":    nullableString,
-						"is_all_day":  map[string]any{"type": "boolean"},
-						"location":    map[string]any{"type": "string"},
-						"description": map[string]any{"type": "string"},
-						"confidence":  map[string]any{"type": "number", "minimum": 0, "maximum": 1},
-						"source_text": map[string]any{"type": "string"},
+						"title":               map[string]any{"type": "string"},
+						"date":                map[string]any{"type": "string", "format": "date"},
+						"start_time":          nullableString,
+						"end_time":            nullableString,
+						"is_all_day":          map[string]any{"type": "boolean"},
+						"location":            map[string]any{"type": "string"},
+						"description":         map[string]any{"type": "string"},
+						"belongings":          map[string]any{"type": "string"},
+						"submission_deadline": nullableString,
+						"confidence":          map[string]any{"type": "number", "minimum": 0, "maximum": 1},
+						"source_text":         map[string]any{"type": "string"},
 					},
 					"required": []string{
 						"title", "date", "start_time", "end_time", "is_all_day",
-						"location", "description", "confidence", "source_text",
+						"location", "description", "belongings", "submission_deadline", "confidence", "source_text",
 					},
 				},
 			},

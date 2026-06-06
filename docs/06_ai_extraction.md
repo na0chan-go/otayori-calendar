@@ -50,6 +50,8 @@ AIの出力はJSONに固定する。
       "is_all_day": true,
       "location": "保育園",
       "description": "朝は薄着で登園してください。",
+      "belongings": "",
+      "submission_deadline": null,
       "confidence": 0.86,
       "source_text": "6月12日（金）身体測定を行います。朝は薄着で登園してください。"
     }
@@ -62,8 +64,9 @@ AIの出力はJSONに固定する。
 - 日付があるものを予定候補とする
 - 時間がない場合は終日予定とする
 - 「午前中」「登園時」など曖昧な時間はdescriptionに残す
-- 持ち物はdescriptionに含める
-- 提出期限は予定として抽出する
+- 持ち物はbelongingsに含める
+- 提出期限はsubmission_deadlineに含める
+- 持ち物・提出期限以外の注意事項はdescriptionに含める
 - confidenceが低いものは登録候補にするが、警告表示する
 - source_textには抽出根拠となる原文を保存する
 
@@ -102,6 +105,8 @@ JSON schema:
       "is_all_day": true,
       "location": "string",
       "description": "string",
+      "belongings": "string",
+      "submission_deadline": "YYYY-MM-DD|null",
       "confidence": 0.0,
       "source_text": "string"
     }
@@ -118,6 +123,7 @@ API側ではAI出力をそのまま保存せず、以下を検証する。
 - titleが空でないこと
 - dateが日付として妥当であること
 - confidenceが0から1の範囲であること
+- submission_deadlineが指定される場合は日付形式として妥当であること
 - start_time / end_time が指定される場合は時刻形式として妥当であること
 
 ## Configuration

@@ -28,6 +28,8 @@ type ExtractedEvent struct {
 	IsAllDay              bool            `gorm:"not null;default:true" json:"is_all_day"`
 	Location              string          `json:"location"`
 	Description           string          `json:"description"`
+	Belongings            string          `json:"belongings"`
+	SubmissionDeadline    *time.Time      `gorm:"type:date" json:"submission_deadline"`
 	Confidence            float64         `gorm:"type:numeric(3,2)" json:"confidence"`
 	SourceText            string          `json:"source_text"`
 	GoogleCalendarEventID string          `gorm:"index" json:"google_calendar_event_id"`

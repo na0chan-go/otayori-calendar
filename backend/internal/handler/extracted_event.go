@@ -16,13 +16,15 @@ import (
 )
 
 type updateExtractedEventRequest struct {
-	Title       *string `json:"title"`
-	EventDate   *string `json:"event_date"`
-	StartTime   *string `json:"start_time"`
-	EndTime     *string `json:"end_time"`
-	IsAllDay    *bool   `json:"is_all_day"`
-	Location    *string `json:"location"`
-	Description *string `json:"description"`
+	Title              *string `json:"title"`
+	EventDate          *string `json:"event_date"`
+	StartTime          *string `json:"start_time"`
+	EndTime            *string `json:"end_time"`
+	IsAllDay           *bool   `json:"is_all_day"`
+	Location           *string `json:"location"`
+	Description        *string `json:"description"`
+	Belongings         *string `json:"belongings"`
+	SubmissionDeadline *string `json:"submission_deadline"`
 }
 
 type bulkExtractedEventsRequest struct {
@@ -496,7 +498,7 @@ func (s *Server) buildGoogleEventFromExtractedEvent(event model.ExtractedEvent) 
 	googleEvent := &calendar.Event{
 		Summary:     event.Title,
 		Location:    event.Location,
-		Description: event.Description,
+		Description: extractedEventCalendarDescription(event),
 	}
 
 	timeZone := s.cfg.DefaultTimeZone
@@ -523,6 +525,20 @@ func (s *Server) buildGoogleEventFromExtractedEvent(event model.ExtractedEvent) 
 	googleEvent.Start = &calendar.EventDateTime{DateTime: startAt.Format(time.RFC3339), TimeZone: timeZone}
 	googleEvent.End = &calendar.EventDateTime{DateTime: endAt.Format(time.RFC3339), TimeZone: timeZone}
 	return googleEvent, nil
+}
+
+func extractedEventCalendarDescription(event model.ExtractedEvent) string {
+	parts := make([]string, 0, 3)
+	if description := strings.TrimSpace(event.Description); description != "" {
+		parts = append(parts, description)
+	}
+	if belongings := strings.TrimSpace(event.Belongings); belongings != "" {
+		parts = append(parts, "持ち物: "+belongings)
+	}
+	if event.SubmissionDeadline != nil {
+		parts = append(parts, "提出期限: "+event.SubmissionDeadline.Format("2006年1月2日"))
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func validateExtractedEventEditable(event model.ExtractedEvent) error {
@@ -600,6 +616,16 @@ func applyExtractedEventUpdate(event *model.ExtractedEvent, req updateExtractedE
 	}
 	if req.Description != nil {
 		event.Description = strings.TrimSpace(*req.Description)
+	}
+	if req.Belongings != nil {
+		event.Belongings = strings.TrimSpace(*req.Belongings)
+	}
+	if req.SubmissionDeadline != nil {
+		submissionDeadline, err := normalizeOptionalDate(req.SubmissionDeadline, "submission_deadline")
+		if err != nil {
+			return err
+		}
+		event.SubmissionDeadline = submissionDeadline
 	}
 
 	if event.Status != model.ExtractedEventStatusRegistered && event.Status != model.ExtractedEventStatusDeleted {
