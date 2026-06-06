@@ -84,6 +84,7 @@ const eventMessage = ref('')
 const savingEvent = ref(false)
 const letterMessage = ref('')
 const uploadingLetter = ref(false)
+const deletingLetterId = ref('')
 const extractingLetterId = ref('')
 const savingCandidateId = ref('')
 const registeringCandidateId = ref('')
@@ -226,6 +227,38 @@ async function extractEvents(letter: Letter) {
       error instanceof Error ? error.message : '予定候補の抽出でエラーが発生しました'
   } finally {
     extractingLetterId.value = ''
+  }
+}
+
+async function deleteLetter(letter: Letter) {
+  const title = letter.title || '無題のおたより'
+  const confirmed = window.confirm(
+    `「${title}」を削除しますか？\n\n画像と紐づく予定候補は削除されます。Googleカレンダーへ登録済みの予定は削除されません。`,
+  )
+  if (!confirmed) return
+
+  deletingLetterId.value = letter.id
+  letterMessage.value = ''
+  errorMessage.value = ''
+
+  try {
+    const response = await fetch(`${apiBaseUrl}/api/letters/${letter.id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
+      throw new Error(body?.message ?? 'おたよりを削除できませんでした')
+    }
+
+    if (letter.object_url) URL.revokeObjectURL(letter.object_url)
+    delete ocrTextByLetter.value[letter.id]
+    letterMessage.value = 'おたより画像と紐づく予定候補を削除しました'
+    await Promise.all([loadLetters(), loadExtractedEvents(), loadCalendarEvents()])
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : 'おたよりの削除でエラーが発生しました'
+  } finally {
+    deletingLetterId.value = ''
   }
 }
 
@@ -642,6 +675,14 @@ onMounted(loadMe)
           <div>
             <h3>{{ letter.title || '無題のおたより' }}</h3>
             <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
+            <button
+              class="danger-button"
+              :disabled="deletingLetterId === letter.id || extractingLetterId === letter.id"
+              type="button"
+              @click="deleteLetter(letter)"
+            >
+              {{ deletingLetterId === letter.id ? '削除中...' : 'おたよりを削除' }}
+            </button>
           </div>
           <div class="ocr-panel">
             <label>

@@ -35,6 +35,7 @@
 - 画像表示APIは `letters.user_id` とログインユーザーIDを照合する
 - すべてのextracted_eventsはletter_id経由でユーザー所有権を検証する
 - 他ユーザーの画像・OCR結果・予定候補にはアクセスできないようにする
+- おたより削除APIは `letters.user_id` とログインユーザーIDを照合し、画像ファイルと紐づく抽出データを削除する
 
 ## Logging Policy
 

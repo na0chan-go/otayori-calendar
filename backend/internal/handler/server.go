@@ -29,7 +29,7 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	e.Use(middleware.Logger())
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     []string{cfg.FrontendURL},
-		AllowMethods:     []string{http.MethodGet, http.MethodPatch, http.MethodPost, http.MethodOptions},
+		AllowMethods:     []string{http.MethodGet, http.MethodPatch, http.MethodPost, http.MethodDelete, http.MethodOptions},
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 		AllowCredentials: true,
 	}))
@@ -67,6 +67,7 @@ func (s *Server) routes() {
 	s.POST("/api/letters", s.uploadLetter)
 	s.GET("/api/letters", s.listLetters)
 	s.GET("/api/letters/:id/image", s.showLetterImage)
+	s.DELETE("/api/letters/:id", s.deleteLetter)
 	s.POST("/api/letters/:id/extract-events", s.extractLetterEvents)
 	s.GET("/api/extracted-events", s.listExtractedEvents)
 	s.POST("/api/extracted-events/bulk-confirm", s.bulkConfirmExtractedEvents)

@@ -164,6 +164,68 @@ func (s *Server) showLetterImage(c echo.Context) error {
 	return c.File(letter.ImagePath)
 }
 
+func (s *Server) deleteLetter(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	letterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "letter not found")
+	}
+
+	var letter model.Letter
+	if err := s.db.WithContext(c.Request().Context()).
+		First(&letter, "id = ? AND user_id = ?", letterID, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "letter not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load letter")
+	}
+
+	quarantinePath, err := quarantineLetterImage(letter.ImagePath)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to prepare letter image deletion")
+	}
+
+	if err := s.db.WithContext(c.Request().Context()).Delete(&letter).Error; err != nil {
+		_ = restoreQuarantinedLetterImage(quarantinePath, letter.ImagePath)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete letter")
+	}
+
+	if err := removeQuarantinedLetterImage(quarantinePath); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete letter image")
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func quarantineLetterImage(imagePath string) (string, error) {
+	quarantinePath := imagePath + ".deleting-" + uuid.NewString()
+	if err := os.Rename(imagePath, quarantinePath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	return quarantinePath, nil
+}
+
+func restoreQuarantinedLetterImage(quarantinePath, imagePath string) error {
+	if quarantinePath == "" {
+		return nil
+	}
+	return os.Rename(quarantinePath, imagePath)
+}
+
+func removeQuarantinedLetterImage(quarantinePath string) error {
+	if quarantinePath == "" {
+		return nil
+	}
+	return os.Remove(quarantinePath)
+}
+
 func newLetterResponse(letter model.Letter) letterResponse {
 	return letterResponse{
 		ID:        letter.ID,

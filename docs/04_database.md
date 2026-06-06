@@ -53,7 +53,7 @@ AIによって抽出された予定候補を保存する。
 ```sql
 CREATE TABLE extracted_events (
   id UUID PRIMARY KEY,
-  letter_id UUID NOT NULL REFERENCES letters(id),
+  letter_id UUID NOT NULL REFERENCES letters(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   event_date DATE NOT NULL,
   start_time TIME,
@@ -98,6 +98,8 @@ CREATE INDEX idx_extracted_events_google_calendar_event_id ON extracted_events(g
 - `confidence` はAI抽出結果の確信度として扱い、低い場合はUIで警告表示する。
 - token類は平文保存せず、実装時には暗号化を検討する。
 - `letters.image_path` は内部保存パスであり、APIレスポンスでは直接返さない。
+- おたよりを削除した場合、紐づく `extracted_events` はCASCADE削除する。
+- 抽出候補からGoogleカレンダーへ登録済みの予定は外部データのため、おたより削除では削除しない。
 
 ## manual_events
 
