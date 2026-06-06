@@ -161,12 +161,14 @@
     bottom: 10px;
   }
 
-  .guide-backdrop {
+  .guide-backdrop,
+  .preview-backdrop {
     align-items: end;
     padding: 0;
   }
 
-  .guide-dialog {
+  .guide-dialog,
+  .preview-dialog {
     max-height: 92vh;
     overflow-y: auto;
     border-radius: 24px 24px 0 0;
@@ -176,5 +178,9 @@
   .guide-statuses dl > div {
     gap: 4px;
     grid-template-columns: 1fr;
+  }
+
+  .preview-actions {
+    display: grid;
   }
 }
