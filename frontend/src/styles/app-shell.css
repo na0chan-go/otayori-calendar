@@ -332,6 +332,24 @@
   margin: 0;
 }
 
+.preview-warnings ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.preview-ignore-button {
+  margin-top: 10px;
+  border: 1px solid rgba(107, 87, 45, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+  padding: 8px 10px;
+  color: #6b572d;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .preview-actions {
   display: flex;
   justify-content: flex-end;

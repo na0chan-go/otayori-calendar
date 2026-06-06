@@ -117,8 +117,10 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       setUndoCandidateAction('1件の除外を取り消し、元の状態へ戻します', [
         createUndoRestore(event.id, body.event.status, previousStatus),
       ])
+      return true
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '予定候補の除外でエラーが発生しました'
+      return false
     } finally {
       savingCandidateId.value = ''
     }
