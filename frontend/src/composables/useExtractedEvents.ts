@@ -16,6 +16,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
   const registeringCandidateId = ref('')
   const savingCandidateId = ref('')
   const selectedCandidateIds = ref<string[]>([])
+  const selectedCandidateLetterId = ref('')
   const undoCandidateAction = ref<UndoCandidateAction | null>(null)
   let undoTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -325,6 +326,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     selectedCandidateIds.value = []
     candidateMessage.value = ''
     clearUndoCandidateAction()
+    selectedCandidateLetterId.value = ''
   }
 
   return {
@@ -355,6 +357,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     savingCandidateId,
     selectableExtractedEvents,
     selectedCandidateIds,
+    selectedCandidateLetterId,
     toggleAllSelectableCandidates,
     undoCandidateAction,
     undoLastCandidateAction,

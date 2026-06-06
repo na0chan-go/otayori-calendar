@@ -3,6 +3,7 @@ import type { ExtractedEvent, Letter } from '../types'
 import { apiBaseUrl } from './api'
 
 type LetterDependencies = {
+  candidateCountForLetter: (letterId: string) => number
   mergeExtractedEvents: (events: ExtractedEvent[]) => void
   refreshRelatedData: () => Promise<void>
 }
@@ -60,6 +61,12 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
   }
 
   async function extractEvents(letter: Letter) {
+    if (
+      dependencies.candidateCountForLetter(letter.id) > 0 &&
+      !window.confirm('このおたよりには予定候補があります。再抽出すると候補が追加される可能性があります。続けますか？')
+    ) {
+      return
+    }
     const ocrText = ocrTextByLetter.value[letter.id]?.trim()
     extractingLetterId.value = letter.id
     letterMessage.value = ''

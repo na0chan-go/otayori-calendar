@@ -15,6 +15,8 @@ export function useOtayoriCalendar() {
   const calendar = useCalendarEvents(errorMessage)
   const candidates = useExtractedEvents(errorMessage, calendar.loadCalendarEvents)
   const letters = useLetters(errorMessage, {
+    candidateCountForLetter: (letterId) =>
+      candidates.extractedEvents.value.filter((event) => event.letter_id === letterId).length,
     mergeExtractedEvents: candidates.mergeExtractedEvents,
     refreshRelatedData: async () => {
       await Promise.all([candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
@@ -22,6 +24,7 @@ export function useOtayoriCalendar() {
   })
 
   function switchView(view: ViewName) {
+    if (view === 'candidates') candidates.selectedCandidateLetterId.value = ''
     activeView.value = view
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }

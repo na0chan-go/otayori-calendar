@@ -25,6 +25,7 @@ const {
   saveExtractedEvent,
   savingCandidateId,
   selectedCandidateIds,
+  selectedCandidateLetterId,
   switchView,
   undoCandidateAction,
   undoLastCandidateAction,
@@ -48,7 +49,11 @@ const statusFilters: { value: StatusFilter; label: string }[] = [
 ]
 
 const filteredExtractedEvents = computed(() =>
-  extractedEvents.value.filter((event) => matchesStatusFilter(event) && matchesDateFilter(event)),
+  extractedEvents.value.filter((event) =>
+    (!selectedCandidateLetterId.value || event.letter_id === selectedCandidateLetterId.value) &&
+    matchesStatusFilter(event) &&
+    matchesDateFilter(event),
+  ),
 )
 
 const filteredSelectableEvents = computed(() => filteredExtractedEvents.value.filter(canSelectExtractedEvent))
@@ -137,6 +142,10 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
       <h3>予定候補はまだありません</h3>
       <p>おたより画像を追加して、「予定候補を見つける」を押してください。</p>
       <button class="primary-button" type="button" @click="switchView('letters')">おたよりを追加する</button>
+    </div>
+    <div v-if="selectedCandidateLetterId" class="letter-filter-notice">
+      <p>選択したおたよりの候補だけを表示しています。</p>
+      <button type="button" @click="selectedCandidateLetterId = ''">すべての候補を表示</button>
     </div>
     <div v-if="extractedEvents.length > 0" class="candidate-filters surface">
       <div class="filter-group">

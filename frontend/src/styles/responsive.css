@@ -157,6 +157,14 @@
     flex: 1;
   }
 
+  .letter-filter-notice {
+    display: grid;
+  }
+
+  .letter-filter-notice button {
+    width: 100%;
+  }
+
   .undo-notice {
     display: grid;
     bottom: 84px;

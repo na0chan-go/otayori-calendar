@@ -1,14 +1,24 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
+import { buildLetterProgress } from '../../utils/letterProgress'
 
 const {
   attentionCalendarCount,
+  extractedEvents,
   letters,
   pendingCandidateCount,
   readyCandidateCount,
   switchView,
   user,
 } = useOtayoriCalendarContext()
+
+const unfinishedLetterCount = computed(() =>
+  letters.value.filter((letter) => {
+    const progress = buildLetterProgress(extractedEvents.value.filter((event) => event.letter_id === letter.id))
+    return progress.label !== '完了'
+  }).length,
+)
 </script>
 
 <template>
@@ -49,6 +59,11 @@ const {
     <button v-if="attentionCalendarCount > 0" class="next-action-card attention" type="button" @click="switchView('calendar')">
       <span class="next-action-number">{{ attentionCalendarCount }}</span>
       <span><strong>カレンダー予定に確認が必要です</strong><small>失敗・削除済みの予定を確認しましょう</small></span>
+      <span class="next-action-arrow">→</span>
+    </button>
+    <button v-if="unfinishedLetterCount > 0" class="next-action-card" type="button" @click="switchView('letters')">
+      <span class="next-action-number">{{ unfinishedLetterCount }}</span>
+      <span><strong>対応途中のおたよりがあります</strong><small>おたよりごとの進捗を確認しましょう</small></span>
       <span class="next-action-arrow">→</span>
     </button>
     <button class="next-action-card" type="button" @click="switchView('letters')">

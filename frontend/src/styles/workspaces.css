@@ -26,6 +26,47 @@
   color: var(--muted);
 }
 
+.letter-progress-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.letter-progress-heading .section-kicker {
+  margin-bottom: 0;
+}
+
+.letter-progress-chip {
+  margin: 0;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.letter-progress-chip.tone-neutral { background: #edf1ee; }
+.letter-progress-chip.tone-waiting { background: var(--sand); color: #6b572d; }
+.letter-progress-chip.tone-ready { background: var(--lime); color: #53621e; }
+.letter-progress-chip.tone-complete { background: var(--mint); color: #245b40; }
+.letter-progress-chip.tone-attention { background: var(--danger-soft); color: var(--danger); }
+
+.letter-progress-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.letter-progress-counts span {
+  border-radius: 8px;
+  background: var(--paper);
+  padding: 5px 7px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .ocr-panel {
   display: grid;
   gap: 12px;
@@ -51,6 +92,31 @@
   gap: 18px;
   margin-bottom: 16px;
   padding: 20px;
+}
+
+.letter-filter-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 14px;
+  background: var(--mint);
+  padding: 12px 14px;
+}
+
+.letter-filter-notice p {
+  margin: 0;
+  color: #245b40;
+}
+
+.letter-filter-notice button {
+  border: 0;
+  border-radius: 10px;
+  background: var(--white);
+  padding: 8px 10px;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .filter-group {

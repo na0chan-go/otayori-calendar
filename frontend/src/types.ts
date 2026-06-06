@@ -42,6 +42,19 @@ export type ExtractedEventDraft = {
   description: string
 }
 
+export type LetterProgress = {
+  label: '未抽出' | '確認待ち' | '登録準備完了' | '完了' | '要対応'
+  tone: 'neutral' | 'waiting' | 'ready' | 'complete' | 'attention'
+  total: number
+  counts: {
+    draft: number
+    confirmed: number
+    registered: number
+    ignored: number
+    attention: number
+  }
+}
+
 export type BulkExtractedEventResult = {
   id: string
   status: 'success' | 'failed'
