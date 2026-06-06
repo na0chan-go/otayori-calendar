@@ -49,6 +49,7 @@ type bulkExtractedEventsSummary struct {
 
 var (
 	errExtractedEventAlreadyRegistered = errors.New("event is already registered")
+	errExtractedEventNotEditable       = errors.New("registered events cannot be edited")
 	errExtractedEventNotRegisterable   = errors.New("only confirmed, failed, or deleted events can be registered")
 	errGoogleCalendarEventIDMissing    = errors.New("google calendar event id is missing")
 	errGoogleCalendarEventCreateFailed = errors.New("failed to create google calendar event")
@@ -94,6 +95,9 @@ func (s *Server) updateExtractedEvent(c echo.Context) error {
 	event, err := s.loadOwnedExtractedEvent(c, userID, eventID)
 	if err != nil {
 		return err
+	}
+	if err := validateExtractedEventEditable(event); err != nil {
+		return echo.NewHTTPError(http.StatusConflict, err.Error())
 	}
 
 	if err := applyExtractedEventUpdate(&event, req); err != nil {
@@ -470,6 +474,13 @@ func (s *Server) buildGoogleEventFromExtractedEvent(event model.ExtractedEvent) 
 	googleEvent.Start = &calendar.EventDateTime{DateTime: startAt.Format(time.RFC3339), TimeZone: timeZone}
 	googleEvent.End = &calendar.EventDateTime{DateTime: endAt.Format(time.RFC3339), TimeZone: timeZone}
 	return googleEvent, nil
+}
+
+func validateExtractedEventEditable(event model.ExtractedEvent) error {
+	if event.Status == model.ExtractedEventStatusRegistered {
+		return errExtractedEventNotEditable
+	}
+	return nil
 }
 
 func applyExtractedEventUpdate(event *model.ExtractedEvent, req updateExtractedEventRequest) error {

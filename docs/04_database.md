@@ -100,6 +100,8 @@ CREATE INDEX idx_extracted_events_google_calendar_event_id ON extracted_events(g
 - `letters.image_path` は内部保存パスであり、APIレスポンスでは直接返さない。
 - おたよりを削除した場合、紐づく `extracted_events` はCASCADE削除する。
 - 抽出候補からGoogleカレンダーへ登録済みの予定は外部データのため、おたより削除では削除しない。
+- `registered` の予定候補は、Googleカレンダーとの不整合を防ぐため編集不可とする。
+- 既存の不整合データは自動更新せず、Google Calendar APIによる更新機能を実装する際に扱いを再検討する。
 
 ## manual_events
 

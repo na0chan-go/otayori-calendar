@@ -317,6 +317,11 @@ function toTimeInput(value: string | null) {
 }
 
 async function saveExtractedEvent(event: ExtractedEvent) {
+  if (!canEditExtractedEvent(event)) {
+    candidateMessage.value = '登録済み予定はGoogleカレンダーとの不整合を防ぐため編集できません'
+    return
+  }
+
   const draft = eventDrafts.value[event.id]
   if (!draft) return
 
@@ -469,6 +474,10 @@ async function runBulkExtractedEventAction(action: 'confirm' | 'ignore' | 'regis
 
 function canRegisterExtractedEvent(event: ExtractedEvent) {
   return ['confirmed', 'failed', 'deleted'].includes(event.status)
+}
+
+function canEditExtractedEvent(event: ExtractedEvent) {
+  return event.status !== 'registered'
 }
 
 function canSelectExtractedEvent(event: ExtractedEvent) {
@@ -770,38 +779,47 @@ onMounted(loadMe)
           </div>
 
           <form v-if="eventDrafts[event.id]" class="candidate-form" @submit.prevent="saveExtractedEvent(event)">
-            <label>
-              予定名
-              <input v-model="eventDrafts[event.id].title" required type="text" />
-            </label>
-            <label>
-              日付
-              <input v-model="eventDrafts[event.id].event_date" required type="date" />
-            </label>
-            <label class="checkbox-label">
-              <input v-model="eventDrafts[event.id].is_all_day" type="checkbox" />
-              終日予定
-            </label>
-            <div v-if="!eventDrafts[event.id].is_all_day" class="time-grid">
+            <p v-if="!canEditExtractedEvent(event)" class="candidate-lock-message">
+              Googleカレンダー登録済みのため、この画面では編集できません。
+            </p>
+            <fieldset class="candidate-fields" :disabled="!canEditExtractedEvent(event)">
               <label>
-                開始
-                <input v-model="eventDrafts[event.id].start_time" required type="time" />
+                予定名
+                <input v-model="eventDrafts[event.id].title" required type="text" />
               </label>
               <label>
-                終了
-                <input v-model="eventDrafts[event.id].end_time" required type="time" />
+                日付
+                <input v-model="eventDrafts[event.id].event_date" required type="date" />
               </label>
-            </div>
-            <label>
-              場所
-              <input v-model="eventDrafts[event.id].location" type="text" placeholder="保育園" />
-            </label>
-            <label>
-              説明
-              <textarea v-model="eventDrafts[event.id].description" rows="3"></textarea>
-            </label>
+              <label class="checkbox-label">
+                <input v-model="eventDrafts[event.id].is_all_day" type="checkbox" />
+                終日予定
+              </label>
+              <div v-if="!eventDrafts[event.id].is_all_day" class="time-grid">
+                <label>
+                  開始
+                  <input v-model="eventDrafts[event.id].start_time" required type="time" />
+                </label>
+                <label>
+                  終了
+                  <input v-model="eventDrafts[event.id].end_time" required type="time" />
+                </label>
+              </div>
+              <label>
+                場所
+                <input v-model="eventDrafts[event.id].location" type="text" placeholder="保育園" />
+              </label>
+              <label>
+                説明
+                <textarea v-model="eventDrafts[event.id].description" rows="3"></textarea>
+              </label>
+            </fieldset>
             <div class="candidate-actions">
-              <button class="google-button" :disabled="savingCandidateId === event.id" type="submit">
+              <button
+                class="google-button"
+                :disabled="savingCandidateId === event.id || !canEditExtractedEvent(event)"
+                type="submit"
+              >
                 {{ savingCandidateId === event.id ? '保存中...' : '保存' }}
               </button>
               <button
