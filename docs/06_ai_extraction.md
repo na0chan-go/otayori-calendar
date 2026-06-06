@@ -4,14 +4,26 @@
 
 OCR結果から、Googleカレンダーに登録できる予定候補を抽出する。
 
-## MVP Policy
+## Provider
 
-Issue #4の段階では、外部OCR/AI APIを直接呼び出さず、以下の2経路で予定候補を作成する。
+外部AI APIには Gemini API を使用し、既定モデルは `gemini-2.5-flash` とする。
 
-- OCR済みテキストをAPIに渡し、日付を含む行から予定候補を抽出する
-- AI APIのJSON出力をAPIに渡し、保存前にスキーマ検証する
+採用理由:
 
-外部OCR/AI APIの接続は、プロンプト・JSONスキーマ・バリデーション境界を固定した後の拡張として扱う。
+- テキストと画像の両方を入力できる
+- 構造化JSON出力を指定できる
+- Google Cloud / Google Calendar連携と同じGoogle系サービスで構成できる
+
+## Extraction Flow
+
+1. OCRテキストが入力されている場合は、OCRテキストだけをGemini APIへ送る
+2. OCRテキストが空の場合は、アップロード済み画像をGemini APIへ送る
+3. Gemini APIには `application/json` と既存の出力スキーマを指定する
+4. APIレスポンスを既存バリデーションで再検証する
+5. 検証済みの予定候補だけをdraft保存する
+
+`GEMINI_API_KEY` が未設定の場合は、既存のOCRテキスト簡易抽出を利用する。
+外部APIに失敗した場合は予定候補やおたよりデータを変更せず、画面にエラーを表示する。
 
 ## Input Example
 
@@ -65,6 +77,8 @@ AIの出力はJSONに固定する。
 
 AI抽出結果は必ずユーザーが確認する。
 AI出力をそのままGoogleカレンダーに登録しない。
+OCR全文、画像データ、Gemini APIのレスポンス本文はログに出さない。
+OCRテキストが入力されている場合は画像を送信せず、外部APIへ送る情報を最小化する。
 
 ## Prompt Policy
 
@@ -105,3 +119,13 @@ API側ではAI出力をそのまま保存せず、以下を検証する。
 - dateが日付として妥当であること
 - confidenceが0から1の範囲であること
 - start_time / end_time が指定される場合は時刻形式として妥当であること
+
+## Configuration
+
+```env
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+- `GEMINI_API_KEY`: Google AI Studioなどで発行したGemini APIキー
+- `GEMINI_MODEL`: 使用するGeminiモデル。未指定時は `gemini-2.5-flash`

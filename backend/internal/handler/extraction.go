@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
+	"github.com/na0chan-go/otayori-calendar/backend/internal/service"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -71,13 +73,19 @@ func (s *Server) extractLetterEvents(c echo.Context) error {
 		sourceOCRText = strings.TrimSpace(letter.OCRText)
 	}
 
-	output, err := buildExtractionOutput(req, sourceOCRText)
+	output, usedExternalAI, err := s.buildLetterExtractionOutput(c, letter, req, sourceOCRText)
 	if err != nil {
+		if usedExternalAI {
+			return externalAIHTTPError(err)
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	events, err := validateExtractionOutput(letter.ID, output)
 	if err != nil {
+		if usedExternalAI {
+			return echo.NewHTTPError(http.StatusBadGateway, "external AI returned invalid output")
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
@@ -93,6 +101,51 @@ func (s *Server) extractLetterEvents(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]any{"events": events})
+}
+
+func externalAIHTTPError(err error) *echo.HTTPError {
+	switch {
+	case errors.Is(err, service.ErrGeminiQuotaExceeded):
+		return echo.NewHTTPError(http.StatusTooManyRequests, "Gemini APIの利用枠またはクレジットが不足しています")
+	case errors.Is(err, service.ErrGeminiAuthentication):
+		return echo.NewHTTPError(http.StatusBadGateway, "Gemini APIキーを確認してください")
+	default:
+		return echo.NewHTTPError(http.StatusBadGateway, "failed to extract events with external AI")
+	}
+}
+
+func (s *Server) buildLetterExtractionOutput(c echo.Context, letter model.Letter, req extractionRequest, sourceOCRText string) (extractionOutput, bool, error) {
+	if strings.TrimSpace(req.AIOutput) != "" || strings.TrimSpace(s.cfg.GeminiAPIKey) == "" {
+		output, err := buildExtractionOutput(req, sourceOCRText)
+		return output, false, err
+	}
+
+	referenceYear := req.ReferenceYear
+	if referenceYear == 0 {
+		referenceYear = time.Now().Year()
+	}
+
+	var image []byte
+	if sourceOCRText == "" {
+		var err error
+		image, err = os.ReadFile(letter.ImagePath)
+		if err != nil {
+			return extractionOutput{}, true, errors.New("failed to read letter image")
+		}
+	}
+
+	rawOutput, err := s.extractor.Extract(c.Request().Context(), service.GeminiExtractionRequest{
+		OCRText:       sourceOCRText,
+		Image:         image,
+		MimeType:      letter.MimeType,
+		ReferenceYear: referenceYear,
+	})
+	if err != nil {
+		return extractionOutput{}, true, err
+	}
+
+	output, err := buildExtractionOutput(extractionRequest{AIOutput: rawOutput}, "")
+	return output, true, err
 }
 
 func buildExtractionOutput(req extractionRequest, ocrText string) (extractionOutput, error) {
