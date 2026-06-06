@@ -215,6 +215,7 @@ npm run dev
 | POST | `/api/letters` | おたより画像をアップロードする |
 | GET | `/api/letters` | 自分のおたより画像一覧を返す |
 | GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
+| DELETE | `/api/letters/:id` | 自分のおたより画像と紐づく予定候補を削除する |
 | POST | `/api/letters/:id/extract-events` | OCRテキストまたはアップロード画像からAIで予定候補を抽出しdraft保存する |
 | GET | `/api/extracted-events` | 自分の予定候補一覧を返す |
 | POST | `/api/extracted-events/bulk-confirm` | 選択した予定候補をまとめてconfirmedにする |
