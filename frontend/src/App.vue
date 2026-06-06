@@ -199,10 +199,6 @@ async function uploadLetter() {
 
 async function extractEvents(letter: Letter) {
   const ocrText = ocrTextByLetter.value[letter.id]?.trim()
-  if (!ocrText) {
-    errorMessage.value = 'OCRテキストを入力してください'
-    return
-  }
 
   extractingLetterId.value = letter.id
   letterMessage.value = ''
@@ -224,7 +220,7 @@ async function extractEvents(letter: Letter) {
 
     const body = (await response.json()) as { events: ExtractedEvent[] }
     mergeExtractedEvents(body.events)
-    letterMessage.value = '予定候補をdraftとして保存しました'
+    letterMessage.value = 'AIで予定候補を抽出し、draftとして保存しました'
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : '予定候補の抽出でエラーが発生しました'
@@ -649,20 +645,21 @@ onMounted(loadMe)
           </div>
           <div class="ocr-panel">
             <label>
-              OCRテキスト
+              OCRテキスト（任意）
               <textarea
                 v-model="ocrTextByLetter[letter.id]"
                 rows="4"
-                placeholder="6月12日（金）身体測定を行います。"
+                placeholder="空欄の場合はアップロード画像からAI抽出します。"
               ></textarea>
             </label>
+            <p class="source-text">OCRテキストを入力すると、画像ではなくテキストをAIへ送信します。</p>
             <button
               class="ghost-button"
               :disabled="extractingLetterId === letter.id"
               type="button"
               @click="extractEvents(letter)"
             >
-              {{ extractingLetterId === letter.id ? '抽出中...' : '予定候補を抽出' }}
+              {{ extractingLetterId === letter.id ? 'AI抽出中...' : 'AIで予定候補を抽出' }}
             </button>
           </div>
         </article>

@@ -168,6 +168,17 @@ Google Cloud ConsoleでOAuth Clientを作成し、以下を設定します。
 - Authorized redirect URIs: `http://localhost:8080/auth/google/callback`
 - Scopes: `userinfo.email`, `userinfo.profile`, `calendar.events`
 
+### Gemini API Setup
+
+Google AI StudioなどでGemini APIキーを発行し、`backend/.env` に設定します。
+
+```env
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+`GEMINI_API_KEY` が設定されている場合、OCRテキストまたはアップロード画像からGemini APIで予定候補を抽出します。
+
 ### Backend
 
 ```bash
@@ -204,7 +215,7 @@ npm run dev
 | POST | `/api/letters` | おたより画像をアップロードする |
 | GET | `/api/letters` | 自分のおたより画像一覧を返す |
 | GET | `/api/letters/:id/image` | 自分のおたより原本画像を返す |
-| POST | `/api/letters/:id/extract-events` | OCRテキストまたはAI JSON出力から予定候補を抽出しdraft保存する |
+| POST | `/api/letters/:id/extract-events` | OCRテキストまたはアップロード画像からAIで予定候補を抽出しdraft保存する |
 | GET | `/api/extracted-events` | 自分の予定候補一覧を返す |
 | POST | `/api/extracted-events/bulk-confirm` | 選択した予定候補をまとめてconfirmedにする |
 | POST | `/api/extracted-events/bulk-ignore` | 選択した予定候補をまとめてignoredにする |

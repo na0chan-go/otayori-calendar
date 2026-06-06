@@ -21,6 +21,8 @@ type Config struct {
 	GoogleCalendarID   string
 	DefaultTimeZone    string
 	LetterStorageDir   string
+	GeminiAPIKey       string
+	GeminiModel        string
 }
 
 func Load() (Config, error) {
@@ -38,6 +40,8 @@ func Load() (Config, error) {
 		GoogleCalendarID:   getEnv("GOOGLE_CALENDAR_ID", "primary"),
 		DefaultTimeZone:    getEnv("DEFAULT_TIME_ZONE", "Asia/Tokyo"),
 		LetterStorageDir:   getEnv("LETTER_STORAGE_DIR", "storage/letters"),
+		GeminiAPIKey:       os.Getenv("GEMINI_API_KEY"),
+		GeminiModel:        getEnv("GEMINI_MODEL", "gemini-2.5-flash"),
 	}
 
 	if cfg.DatabaseURL == "" {

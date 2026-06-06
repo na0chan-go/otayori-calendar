@@ -8,16 +8,18 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/auth"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/config"
+	"github.com/na0chan-go/otayori-calendar/backend/internal/service"
 	"gorm.io/gorm"
 )
 
 type Server struct {
 	*echo.Echo
-	cfg      config.Config
-	db       *gorm.DB
-	sessions auth.SessionManager
-	tokens   auth.TokenCipher
-	states   *auth.StateStore
+	cfg       config.Config
+	db        *gorm.DB
+	sessions  auth.SessionManager
+	tokens    auth.TokenCipher
+	states    *auth.StateStore
+	extractor *service.GeminiExtractor
 }
 
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
@@ -38,12 +40,13 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	}
 
 	s := &Server{
-		Echo:     e,
-		cfg:      cfg,
-		db:       db,
-		sessions: auth.NewSessionManager(cfg.SessionSecret),
-		tokens:   tokenCipher,
-		states:   auth.NewStateStore(10 * time.Minute),
+		Echo:      e,
+		cfg:       cfg,
+		db:        db,
+		sessions:  auth.NewSessionManager(cfg.SessionSecret),
+		tokens:    tokenCipher,
+		states:    auth.NewStateStore(10 * time.Minute),
+		extractor: service.NewGeminiExtractor(cfg.GeminiAPIKey, cfg.GeminiModel, nil),
 	}
 	s.routes()
 	return s
