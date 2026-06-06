@@ -2,6 +2,8 @@
 
 GitHub issue に取り掛かってから、PR をマージして issue をクローズするまでの標準手順です。
 
+調査・読み込み・報告を必要最小限にする方法は、[Token Efficient Workflow](10_token_efficient_workflow.md) を参照する。
+
 ## 目的
 
 - issue ごとの作業範囲を明確にする
@@ -10,7 +12,7 @@ GitHub issue に取り掛かってから、PR をマージして issue をクロ
 
 ## 1. Issue の確認
 
-1. 対象 issue の本文、チェックリスト、完了条件、関連ドキュメントを読む。
+1. 対象 issue の本文、チェックリスト、完了条件と、[Issue別の参照表](10_token_efficient_workflow.md#issue別の参照表) にある関連ドキュメントを読む。
 2. 既存の open issue や直近の PR と重複していないか確認する。
 3. 実装範囲が曖昧な場合は、影響が大きい選択肢だけユーザーに確認する。
 4. 実装方針が決まったら、専用ブランチを作る。
