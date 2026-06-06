@@ -1,25 +1,59 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ExtractedEvent } from '../types'
+import { useOtayoriCalendarContext } from '../composables/otayoriCalendarContext'
+import type { CalendarEvent, ExtractedEvent } from '../types'
 
 const props = defineProps<{ events: ExtractedEvent[]; registering: boolean }>()
-const emit = defineEmits<{ close: []; confirm: [] }>()
-const duplicateKeys = computed(() => {
-  const counts = new Map<string, number>()
+const emit = defineEmits<{ close: []; confirm: []; ignore: [event: ExtractedEvent] }>()
+const { calendarEvents } = useOtayoriCalendarContext()
+
+const duplicateMatches = computed(() => {
+  const matches = new Map<string, string[]>()
   props.events.forEach((event) => {
-    const key = `${event.title}|${event.event_date.slice(0, 10)}`
-    counts.set(key, (counts.get(key) ?? 0) + 1)
+    const eventMatches: string[] = []
+
+    props.events.forEach((candidate) => {
+      if (candidate.id !== event.id && isSimilarEvent(event.title, event.event_date, candidate.title, candidate.event_date)) {
+        eventMatches.push(`今回の登録対象: ${candidate.title}`)
+      }
+    })
+
+    calendarEvents.value
+      .filter((calendarEvent) => calendarEvent.status === 'registered')
+      .forEach((calendarEvent) => {
+        if (isSimilarEvent(event.title, event.event_date, calendarEvent.title, calendarEvent.event_date)) {
+          eventMatches.push(`${sourceLabel(calendarEvent)}: ${calendarEvent.title}`)
+        }
+      })
+
+    matches.set(event.id, [...new Set(eventMatches)])
   })
-  return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key))
+  return matches
 })
 
 function isDuplicate(event: ExtractedEvent) {
-  return duplicateKeys.value.has(`${event.title}|${event.event_date.slice(0, 10)}`)
+  return (duplicateMatches.value.get(event.id)?.length ?? 0) > 0
 }
 
 function timeLabel(event: ExtractedEvent) {
   if (event.is_all_day) return '終日'
   return `${event.start_time?.slice(0, 5) || '未設定'} - ${event.end_time?.slice(0, 5) || '未設定'}`
+}
+
+function isSimilarEvent(title: string, date: string, otherTitle: string, otherDate: string) {
+  if (date.slice(0, 10) !== otherDate.slice(0, 10)) return false
+  const normalized = normalizeTitle(title)
+  const otherNormalized = normalizeTitle(otherTitle)
+  if (normalized.length < 3 || otherNormalized.length < 3) return normalized === otherNormalized
+  return normalized === otherNormalized || normalized.includes(otherNormalized) || otherNormalized.includes(normalized)
+}
+
+function normalizeTitle(title: string) {
+  return title.toLocaleLowerCase('ja-JP').replace(/[\s\u3000・、。,.!！?？「」『』（）()【】[\]_-]/g, '')
+}
+
+function sourceLabel(event: CalendarEvent) {
+  return event.source_type === 'manual' ? '登録済みの手入力予定' : '登録済みのおたより予定'
 }
 </script>
 
@@ -44,7 +78,15 @@ function timeLabel(event: ExtractedEvent) {
           </dl>
           <div v-if="event.confidence < 0.7 || isDuplicate(event)" class="preview-warnings">
             <p v-if="event.confidence < 0.7">読み取り確度が低いため、内容を再確認してください。</p>
-            <p v-if="isDuplicate(event)">同じ予定名・日付の候補が登録対象に含まれています。</p>
+            <template v-if="isDuplicate(event)">
+              <p>同じ日付に類似する予定があります。</p>
+              <ul>
+                <li v-for="match in duplicateMatches.get(event.id)" :key="match">{{ match }}</li>
+              </ul>
+              <button class="preview-ignore-button" :disabled="registering" type="button" @click="emit('ignore', event)">
+                この候補を除外する
+              </button>
+            </template>
           </div>
         </article>
       </div>

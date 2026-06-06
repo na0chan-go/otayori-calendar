@@ -120,6 +120,11 @@ async function confirmPreview() {
   }
   closePreview()
 }
+
+async function ignorePreviewEvent(event: ExtractedEvent) {
+  const ignored = await ignoreExtractedEvent(event)
+  if (ignored) previewEvents.value = previewEvents.value.filter((previewEvent) => previewEvent.id !== event.id)
+}
 </script>
 
 <template>
@@ -268,5 +273,6 @@ async function confirmPreview() {
     :registering="registeringCandidateId !== '' || bulkCandidateAction === 'register'"
     @close="closePreview"
     @confirm="confirmPreview"
+    @ignore="ignorePreviewEvent"
   />
 </template>
