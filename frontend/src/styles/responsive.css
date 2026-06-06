@@ -1,0 +1,141 @@
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .summary-grid,
+  .quick-nav,
+  .letter-grid,
+  .calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .upload-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .upload-form .primary-button {
+    grid-column: 1 / -1;
+  }
+
+  .bulk-toolbar {
+    position: static;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bulk-actions {
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    position: static;
+    align-items: start;
+  }
+
+  .brand small,
+  .account-copy,
+  .text-button {
+    display: none;
+  }
+
+  .content-shell {
+    width: min(100% - 24px, 1180px);
+    padding-top: 18px;
+  }
+
+  .welcome-panel {
+    display: grid;
+    min-height: 0;
+    border-radius: 24px;
+    padding: 26px 22px;
+  }
+
+  .welcome-panel h1 {
+    font-size: 2.35rem;
+  }
+
+  .welcome-panel .primary-button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .summary-grid,
+  .quick-nav,
+  .letter-grid,
+  .calendar-grid,
+  .upload-form,
+  .time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-card {
+    min-height: 132px;
+    padding: 16px;
+  }
+
+  .summary-card strong {
+    font-size: 2.25rem;
+  }
+
+  .quick-nav a {
+    min-height: 92px;
+  }
+
+  .workspace-section {
+    margin-top: 56px;
+  }
+
+  .view-section {
+    margin-top: 12px;
+  }
+
+  .section-heading {
+    display: grid;
+    gap: 10px;
+  }
+
+  .letter-card {
+    grid-template-columns: 88px 1fr;
+    padding: 16px;
+  }
+
+  .letter-card img {
+    width: 88px;
+    height: 88px;
+  }
+
+  .bulk-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .bulk-actions {
+    grid-column: auto;
+  }
+
+  .bulk-actions button,
+  .candidate-actions button,
+  .button-row button {
+    flex: 1 1 100%;
+  }
+
+  .candidate-heading {
+    display: grid;
+  }
+
+  .bottom-nav {
+    bottom: 10px;
+  }
+}
