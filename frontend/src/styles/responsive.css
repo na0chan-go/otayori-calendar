@@ -135,6 +135,15 @@
     display: grid;
   }
 
+  .candidate-summary-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .candidate-expand-button {
+    flex: 1;
+  }
+
   .bottom-nav {
     bottom: 10px;
   }
