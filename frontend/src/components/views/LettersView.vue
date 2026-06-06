@@ -14,6 +14,10 @@ const {
   uploadingLetter,
   uploadLetter,
 } = useOtayoriCalendarContext()
+
+function scrollToUpload() {
+  document.querySelector('#upload')?.scrollIntoView({ behavior: 'smooth' })
+}
 </script>
 
 <template>
@@ -34,7 +38,11 @@ const {
       <div><p class="section-kicker">Letters</p><h2>アップロード済み</h2></div>
       <p>{{ letters.length }}件のおたよりがあります。</p>
     </div>
-    <div v-if="letters.length === 0" class="empty-state">まだおたよりはありません。最初の1枚を追加しましょう。</div>
+    <div v-if="letters.length === 0" class="empty-state">
+      <h3>最初のおたよりを追加しましょう</h3>
+      <p>園から届いた画像を追加すると、AIが予定候補を見つけます。</p>
+      <button class="primary-button" type="button" @click="scrollToUpload">画像を選択する</button>
+    </div>
     <div class="letter-grid">
       <article v-for="letter in letters" :key="letter.id" class="surface letter-card">
         <img v-if="letter.object_url" :src="letter.object_url" :alt="letter.title || 'おたより画像'" />
