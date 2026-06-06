@@ -74,6 +74,69 @@ Calendar API登録に失敗した場合も、候補データを失わずfailed�
 - letters
 - extracted_events
 
+## Backend Dependency Direction
+
+バックエンドは既存APIの挙動を維持しながら、以下の依存方向へ段階的に移行する。
+
+```text
+handler
+  ↓
+usecase
+  ↓
+domain
+
+infrastructure
+  └─ implements ports used by usecase
+```
+
+- `domain` はEcho、GORM、Google APIへ依存しない。
+- `usecase` は処理フローを担当し、DBや外部APIはport/interface経由で利用する。
+- `handler` はHTTP入力、認証ユーザー取得、レスポンス変換を担当する。
+- `infrastructure` はGORM、Google Calendar API、Gemini、画像保存を担当する。
+
+### Current Dependencies
+
+現在は `internal/handler` が以下を直接扱っている。
+
+- Echoのrequest/response
+- GORMによる所有権確認・保存
+- Google tokenの復号・更新
+- Google Calendar APIの登録・存在確認
+- 予定候補の登録可否と状態遷移
+
+特に `extracted_event.go` と `manual_event.go` はHTTP処理と外部連携が混在しているため、予定登録から段階的に分離する。
+
+### Target Directories
+
+```text
+backend/internal/
+  domain/          エンティティ、状態遷移、ドメインルール
+  usecase/         登録、抽出、同期、削除などの処理フロー
+  port/            repository・外部サービスのinterface
+  infrastructure/  GORM、Google Calendar、Gemini、画像保存の実装
+  handler/         HTTP入力、認証ユーザー取得、レスポンス変換
+```
+
+### Planned Ports
+
+- `ExtractedEventRepository`: 所有権を検証した予定候補取得、保存、一覧取得
+- `ManualEventRepository`: 手入力予定の取得、保存、一覧取得
+- `GoogleTokenRepository`: token取得、更新
+- `CalendarGateway`: 予定登録、存在確認
+- `LetterRepository`: おたより取得、保存、削除
+- `ImageStorage`: 画像保存、取得、削除
+- `EventExtractor`: AIによる予定候補抽出
+
+### Migration Stages
+
+1. 予定候補の登録可否・登録結果の状態遷移をdomainへ分離する。
+2. 予定候補登録フローをusecaseへ移し、repositoryとCalendar gatewayをinterface化する。
+3. 手入力予定登録・Calendar同期をusecaseへ移す。
+4. 予定候補の確認・除外・復元をusecaseへ移す。
+5. AI抽出とおたより管理をusecaseへ移す。
+
+各段階で既存APIパス・レスポンス形式・状態遷移を維持し、小さなPRとして検証する。
+
 ## Error Handling
 
 | 想定する失敗 | 対策 |
