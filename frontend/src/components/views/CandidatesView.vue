@@ -26,6 +26,8 @@ const {
   savingCandidateId,
   selectedCandidateIds,
   switchView,
+  undoCandidateAction,
+  undoLastCandidateAction,
 } = useOtayoriCalendarContext()
 
 type StatusFilter = 'all' | 'draft' | 'confirmed' | 'ignored' | 'registered' | 'attention'
@@ -255,6 +257,10 @@ async function confirmPreview() {
       条件に一致する予定候補はありません。
     </div>
     <p v-if="candidateMessage" class="notice success-notice">{{ candidateMessage }}</p>
+    <div v-if="undoCandidateAction" class="notice undo-notice">
+      <p>{{ undoCandidateAction.message }}</p>
+      <button :disabled="bulkCandidateAction !== ''" type="button" @click="undoLastCandidateAction">取り消す</button>
+    </div>
   </section>
   <RegistrationPreview
     v-if="previewEvents.length > 0"

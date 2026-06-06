@@ -269,6 +269,40 @@
   background: #dcf5e8;
 }
 
+.undo-notice {
+  position: sticky;
+  z-index: 6;
+  bottom: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--white);
+  background: var(--ink);
+  box-shadow: 0 14px 34px rgba(23, 32, 28, 0.24);
+}
+
+.undo-notice p {
+  margin: 0;
+  color: inherit;
+}
+
+.undo-notice button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 10px;
+  background: var(--lime);
+  padding: 8px 12px;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.undo-notice button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .error-notice,
 .error {
   color: var(--danger);

@@ -157,6 +157,15 @@
     flex: 1;
   }
 
+  .undo-notice {
+    display: grid;
+    bottom: 84px;
+  }
+
+  .undo-notice button {
+    width: 100%;
+  }
+
   .bottom-nav {
     bottom: 10px;
   }

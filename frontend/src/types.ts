@@ -58,6 +58,17 @@ export type BulkExtractedEventsResponse = {
   }
 }
 
+export type UndoStatusRestore = {
+  id: string
+  expected_status: string
+  status: string
+}
+
+export type UndoCandidateAction = {
+  message: string
+  restores: UndoStatusRestore[]
+}
+
 export type CalendarEvent = {
   id: string
   source_type: 'manual' | 'extracted'

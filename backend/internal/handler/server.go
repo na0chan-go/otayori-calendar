@@ -73,6 +73,7 @@ func (s *Server) routes() {
 	s.POST("/api/extracted-events/bulk-confirm", s.bulkConfirmExtractedEvents)
 	s.POST("/api/extracted-events/bulk-ignore", s.bulkIgnoreExtractedEvents)
 	s.POST("/api/extracted-events/bulk-register", s.bulkRegisterExtractedEvents)
+	s.POST("/api/extracted-events/restore-statuses", s.restoreExtractedEventStatuses)
 	s.PATCH("/api/extracted-events/:id", s.updateExtractedEvent)
 	s.POST("/api/extracted-events/:id/ignore", s.ignoreExtractedEvent)
 	s.POST("/api/extracted-events/:id/register", s.registerExtractedEvent)

@@ -71,6 +71,35 @@ func TestValidateExtractedEventEditableAllowsUnregisteredEvent(t *testing.T) {
 	}
 }
 
+func TestValidateExtractedEventStatusRestoreAllowsLocalStatuses(t *testing.T) {
+	err := validateExtractedEventStatusRestore(
+		model.ExtractedEventStatusIgnored,
+		model.ExtractedEventStatusIgnored,
+		model.ExtractedEventStatusDraft,
+	)
+	if err != nil {
+		t.Fatalf("expected local status restore to be allowed, got %v", err)
+	}
+}
+
+func TestValidateExtractedEventStatusRestoreRejectsChangedOrCalendarStatuses(t *testing.T) {
+	if err := validateExtractedEventStatusRestore(
+		model.ExtractedEventStatusConfirmed,
+		model.ExtractedEventStatusIgnored,
+		model.ExtractedEventStatusDraft,
+	); err == nil {
+		t.Fatal("expected changed current status to be rejected")
+	}
+
+	if err := validateExtractedEventStatusRestore(
+		model.ExtractedEventStatusConfirmed,
+		model.ExtractedEventStatusConfirmed,
+		model.ExtractedEventStatusDeleted,
+	); err == nil {
+		t.Fatal("expected calendar-linked target status to be rejected")
+	}
+}
+
 func TestBuildGoogleEventFromExtractedEventAllDay(t *testing.T) {
 	server := newTestServer()
 
