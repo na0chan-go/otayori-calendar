@@ -57,16 +57,17 @@ func TestApplyExtractedEventUpdateRejectsInvalidTimedRange(t *testing.T) {
 	}
 }
 
-func TestApplyExtractedEventUpdateKeepsRegisteredStatus(t *testing.T) {
-	title := "更新後タイトル"
-	event := model.ExtractedEvent{Status: model.ExtractedEventStatusRegistered, IsAllDay: true}
-
-	err := applyExtractedEventUpdate(&event, updateExtractedEventRequest{Title: &title})
-	if err != nil {
-		t.Fatal(err)
+func TestValidateExtractedEventEditableRejectsRegisteredEvent(t *testing.T) {
+	err := validateExtractedEventEditable(model.ExtractedEvent{Status: model.ExtractedEventStatusRegistered})
+	if !errors.Is(err, errExtractedEventNotEditable) {
+		t.Fatalf("expected not editable error, got %v", err)
 	}
-	if event.Status != model.ExtractedEventStatusRegistered {
-		t.Fatalf("expected registered status, got %q", event.Status)
+}
+
+func TestValidateExtractedEventEditableAllowsUnregisteredEvent(t *testing.T) {
+	err := validateExtractedEventEditable(model.ExtractedEvent{Status: model.ExtractedEventStatusConfirmed})
+	if err != nil {
+		t.Fatalf("expected confirmed event to be editable, got %v", err)
 	}
 }
 
