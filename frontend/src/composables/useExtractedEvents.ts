@@ -1,5 +1,11 @@
 import { computed, ref, type Ref } from 'vue'
-import type { BulkExtractedEventsResponse, ExtractedEvent, ExtractedEventDraft } from '../types'
+import type {
+  BulkExtractedEventsResponse,
+  ExtractedEvent,
+  ExtractedEventDraft,
+  UndoCandidateAction,
+  UndoStatusRestore,
+} from '../types'
 import { apiBaseUrl } from './api'
 
 export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEvents: () => Promise<void>) {
@@ -10,6 +16,8 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
   const registeringCandidateId = ref('')
   const savingCandidateId = ref('')
   const selectedCandidateIds = ref<string[]>([])
+  const undoCandidateAction = ref<UndoCandidateAction | null>(null)
+  let undoTimer: ReturnType<typeof setTimeout> | undefined
 
   const pendingCandidateCount = computed(
     () => extractedEvents.value.filter((event) => event.status === 'draft').length,
@@ -88,6 +96,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
   }
 
   async function ignoreExtractedEvent(event: ExtractedEvent) {
+    const previousStatus = event.status
     savingCandidateId.value = event.id
     candidateMessage.value = ''
     errorMessage.value = ''
@@ -105,6 +114,9 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       const body = (await response.json()) as { event: ExtractedEvent }
       replaceExtractedEvent(body.event)
       candidateMessage.value = '予定候補を除外しました'
+      setUndoCandidateAction('1件の除外を取り消し、元の状態へ戻します', [
+        createUndoRestore(event.id, body.event.status, previousStatus),
+      ])
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '予定候補の除外でエラーが発生しました'
     } finally {
@@ -163,6 +175,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     }
 
     const actionLabels = { confirm: '確認', ignore: '除外', register: 'Googleカレンダー登録' } as const
+    const previousStatuses = new Map(selectedExtractedEvents().map((event) => [event.id, event.status]))
     bulkCandidateAction.value = action
     candidateMessage.value = ''
     errorMessage.value = ''
@@ -185,6 +198,19 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
         body.results.some((result) => result.id === id && result.status === 'failed'),
       )
       candidateMessage.value = `一括${actionLabels[action]}: 成功 ${body.summary.success}件 / 失敗 ${body.summary.failed}件`
+      if (action !== 'register') {
+        const restores = body.results.flatMap((result) => {
+          const previousStatus = previousStatuses.get(result.id)
+          const currentStatus = result.event?.status
+          if (result.status !== 'success' || !previousStatus || !currentStatus || previousStatus === currentStatus) return []
+          const restore = createUndoRestore(result.id, currentStatus, previousStatus)
+          return restore ? [restore] : []
+        })
+        setUndoCandidateAction(
+          `${restores.length}件の一括${actionLabels[action]}を取り消し、元の状態へ戻します`,
+          restores,
+        )
+      }
       if (action === 'register') await refreshCalendarEvents()
     } catch (error) {
       errorMessage.value =
@@ -192,6 +218,56 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     } finally {
       bulkCandidateAction.value = ''
     }
+  }
+
+  async function undoLastCandidateAction() {
+    const action = undoCandidateAction.value
+    if (!action) return
+
+    clearUndoCandidateAction()
+    candidateMessage.value = ''
+    errorMessage.value = ''
+    bulkCandidateAction.value = 'undo'
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/extracted-events/restore-statuses`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: action.restores }),
+      })
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null
+        throw new Error(body?.message ?? '取り消しに失敗しました')
+      }
+
+      const body = (await response.json()) as BulkExtractedEventsResponse
+      mergeExtractedEvents(body.events)
+      candidateMessage.value =
+        body.summary.failed === 0
+          ? `${body.summary.success}件の操作を取り消しました`
+          : `取り消し: 成功 ${body.summary.success}件 / 失敗 ${body.summary.failed}件。現在の状態を確認してください`
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '取り消しでエラーが発生しました'
+      await loadExtractedEvents().catch(() => undefined)
+    } finally {
+      bulkCandidateAction.value = ''
+    }
+  }
+
+  function setUndoCandidateAction(message: string, restores: (UndoStatusRestore | null)[]) {
+    const safeRestores = restores.filter((restore): restore is UndoStatusRestore => restore !== null)
+    clearUndoCandidateAction()
+    if (safeRestores.length === 0) return
+
+    undoCandidateAction.value = { message, restores: safeRestores }
+    undoTimer = setTimeout(clearUndoCandidateAction, 8000)
+  }
+
+  function clearUndoCandidateAction() {
+    if (undoTimer) clearTimeout(undoTimer)
+    undoTimer = undefined
+    undoCandidateAction.value = null
   }
 
   function selectedExtractedEvents() {
@@ -246,6 +322,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     eventDrafts.value = {}
     selectedCandidateIds.value = []
     candidateMessage.value = ''
+    clearUndoCandidateAction()
   }
 
   return {
@@ -277,7 +354,15 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     selectableExtractedEvents,
     selectedCandidateIds,
     toggleAllSelectableCandidates,
+    undoCandidateAction,
+    undoLastCandidateAction,
   }
+}
+
+function createUndoRestore(id: string, expectedStatus: string, status: string): UndoStatusRestore | null {
+  const safeStatuses = ['draft', 'confirmed', 'ignored']
+  if (!safeStatuses.includes(expectedStatus) || !safeStatuses.includes(status)) return null
+  return { id, expected_status: expectedStatus, status }
 }
 
 function toEventDraft(event: ExtractedEvent): ExtractedEventDraft {

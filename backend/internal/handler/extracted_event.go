@@ -29,6 +29,16 @@ type bulkExtractedEventsRequest struct {
 	IDs []string `json:"ids"`
 }
 
+type restoreExtractedEventStatusRequest struct {
+	ID             string `json:"id"`
+	ExpectedStatus string `json:"expected_status"`
+	Status         string `json:"status"`
+}
+
+type restoreExtractedEventStatusesRequest struct {
+	Events []restoreExtractedEventStatusRequest `json:"events"`
+}
+
 type bulkExtractedEventsResponse struct {
 	Events  []model.ExtractedEvent     `json:"events"`
 	Results []bulkExtractedEventResult `json:"results"`
@@ -214,6 +224,45 @@ func (s *Server) bulkIgnoreExtractedEvents(c echo.Context) error {
 			continue
 		}
 		response.addSuccess(event, "ignored")
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+func (s *Server) restoreExtractedEventStatuses(c echo.Context) error {
+	userID, err := s.currentUserID(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+
+	var req restoreExtractedEventStatusesRequest
+	if err := c.Bind(&req); err != nil || len(req.Events) == 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	response := newBulkExtractedEventsResponse()
+	for _, restore := range req.Events {
+		eventID, err := uuid.Parse(restore.ID)
+		if err != nil {
+			response.addFailure(restore.ID, "extracted event not found")
+			continue
+		}
+		event, err := s.loadOwnedExtractedEvent(c, userID, eventID)
+		if err != nil {
+			response.addFailure(restore.ID, "extracted event not found")
+			continue
+		}
+		if err := validateExtractedEventStatusRestore(event.Status, restore.ExpectedStatus, restore.Status); err != nil {
+			response.addFailure(restore.ID, err.Error())
+			continue
+		}
+
+		event.Status = restore.Status
+		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
+			response.addFailure(restore.ID, "failed to restore extracted event")
+			continue
+		}
+		response.addSuccess(event, "restored")
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -481,6 +530,22 @@ func validateExtractedEventEditable(event model.ExtractedEvent) error {
 		return errExtractedEventNotEditable
 	}
 	return nil
+}
+
+func validateExtractedEventStatusRestore(currentStatus, expectedStatus, targetStatus string) error {
+	if currentStatus != expectedStatus {
+		return errors.New("event status changed after the original action")
+	}
+	if !isLocallyRestorableExtractedEventStatus(currentStatus) || !isLocallyRestorableExtractedEventStatus(targetStatus) {
+		return errors.New("event status cannot be restored")
+	}
+	return nil
+}
+
+func isLocallyRestorableExtractedEventStatus(status string) bool {
+	return status == model.ExtractedEventStatusDraft ||
+		status == model.ExtractedEventStatusConfirmed ||
+		status == model.ExtractedEventStatusIgnored
 }
 
 func applyExtractedEventUpdate(event *model.ExtractedEvent, req updateExtractedEventRequest) error {
