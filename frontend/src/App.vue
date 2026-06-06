@@ -318,10 +318,21 @@ function toTimeInput(value: string | null) {
 
 async function saveExtractedEvent(event: ExtractedEvent) {
   if (!canEditExtractedEvent(event)) {
-    candidateMessage.value = '登録済み予定はGoogleカレンダーとの不整合を防ぐため編集できません'
+    candidateMessage.value =
+      event.status === 'ignored'
+        ? '編集するには、先に除外を取り消してください'
+        : '登録済み予定はGoogleカレンダーとの不整合を防ぐため編集できません'
     return
   }
 
+  await updateExtractedEvent(event, '予定候補を保存しました')
+}
+
+async function restoreIgnoredExtractedEvent(event: ExtractedEvent) {
+  await updateExtractedEvent(event, '除外を取り消し、確認済みに戻しました')
+}
+
+async function updateExtractedEvent(event: ExtractedEvent, successMessage: string) {
   const draft = eventDrafts.value[event.id]
   if (!draft) return
 
@@ -349,7 +360,7 @@ async function saveExtractedEvent(event: ExtractedEvent) {
 
     const body = (await response.json()) as { event: ExtractedEvent }
     replaceExtractedEvent(body.event)
-    candidateMessage.value = '予定候補を保存しました'
+    candidateMessage.value = successMessage
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : '予定候補の更新でエラーが発生しました'
@@ -420,6 +431,10 @@ async function bulkIgnoreExtractedEvents() {
 }
 
 async function bulkRegisterExtractedEvents() {
+  if (!canBulkRegisterSelectedEvents()) {
+    candidateMessage.value = '一括登録するには、選択中の予定候補を先に一括確認してください'
+    return
+  }
   await runBulkExtractedEventAction('register')
 }
 
@@ -476,12 +491,26 @@ function canRegisterExtractedEvent(event: ExtractedEvent) {
   return ['confirmed', 'failed', 'deleted'].includes(event.status)
 }
 
+function selectedExtractedEvents() {
+  const selectedIds = new Set(selectedCandidateIds.value)
+  return extractedEvents.value.filter((event) => selectedIds.has(event.id))
+}
+
+function canBulkRegisterSelectedEvents() {
+  const selectedEvents = selectedExtractedEvents()
+  return selectedEvents.length > 0 && selectedEvents.every(canRegisterExtractedEvent)
+}
+
+function hasUnregisterableSelectedEvents() {
+  return selectedCandidateIds.value.length > 0 && !canBulkRegisterSelectedEvents()
+}
+
 function canEditExtractedEvent(event: ExtractedEvent) {
-  return event.status !== 'registered'
+  return event.status !== 'registered' && event.status !== 'ignored'
 }
 
 function canSelectExtractedEvent(event: ExtractedEvent) {
-  return event.status !== 'registered'
+  return event.status !== 'registered' && event.status !== 'ignored'
 }
 
 function selectableExtractedEvents() {
@@ -747,13 +776,16 @@ onMounted(loadMe)
             </button>
             <button
               class="google-button"
-              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
+              :disabled="!canBulkRegisterSelectedEvents() || bulkCandidateAction !== ''"
               type="button"
               @click="bulkRegisterExtractedEvents"
             >
               {{ bulkCandidateAction === 'register' ? '登録中...' : '一括登録' }}
             </button>
           </div>
+          <p v-if="hasUnregisterableSelectedEvents()" class="bulk-guidance">
+            一括登録するには、選択中の予定候補を先に一括確認してください。
+          </p>
         </div>
         <article
           v-for="event in extractedEvents"
@@ -779,8 +811,11 @@ onMounted(loadMe)
           </div>
 
           <form v-if="eventDrafts[event.id]" class="candidate-form" @submit.prevent="saveExtractedEvent(event)">
-            <p v-if="!canEditExtractedEvent(event)" class="candidate-lock-message">
+            <p v-if="event.status === 'registered'" class="candidate-lock-message">
               Googleカレンダー登録済みのため、この画面では編集できません。
+            </p>
+            <p v-if="event.status === 'ignored'" class="candidate-lock-message">
+              除外済みです。編集を再開する場合は、先に除外を取り消してください。
             </p>
             <fieldset class="candidate-fields" :disabled="!canEditExtractedEvent(event)">
               <label>
@@ -816,11 +851,21 @@ onMounted(loadMe)
             </fieldset>
             <div class="candidate-actions">
               <button
+                v-if="event.status !== 'ignored'"
                 class="google-button"
                 :disabled="savingCandidateId === event.id || !canEditExtractedEvent(event)"
                 type="submit"
               >
                 {{ savingCandidateId === event.id ? '保存中...' : '保存' }}
+              </button>
+              <button
+                v-if="event.status === 'ignored'"
+                class="ghost-button"
+                :disabled="savingCandidateId === event.id"
+                type="button"
+                @click="restoreIgnoredExtractedEvent(event)"
+              >
+                {{ savingCandidateId === event.id ? '取消中...' : '除外を取り消す' }}
               </button>
               <button
                 v-if="canRegisterExtractedEvent(event)"
