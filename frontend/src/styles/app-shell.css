@@ -152,7 +152,8 @@
   padding: 42px 0 96px;
 }
 
-.guide-backdrop {
+.guide-backdrop,
+.preview-backdrop {
   position: fixed;
   z-index: 30;
   inset: 0;
@@ -163,7 +164,8 @@
   padding: 24px;
 }
 
-.guide-dialog {
+.guide-dialog,
+.preview-dialog {
   position: relative;
   width: min(720px, 100%);
   border-radius: 28px;
@@ -266,4 +268,73 @@
 
 .guide-start {
   width: 100%;
+}
+
+.preview-lead {
+  margin-bottom: 20px;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.preview-list {
+  display: grid;
+  gap: 12px;
+  max-height: min(52vh, 520px);
+  overflow-y: auto;
+}
+
+.preview-event {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  padding: 16px;
+}
+
+.preview-event h3 {
+  margin: 8px 0 0;
+}
+
+.preview-event dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.preview-event dl > div {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 52px 1fr;
+}
+
+.preview-event dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.preview-event dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+}
+
+.preview-warnings {
+  border-radius: 12px;
+  background: var(--sand);
+  padding: 10px 12px;
+  color: #6b572d;
+  font-size: 0.82rem;
+}
+
+.preview-warnings p {
+  margin: 0;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
 }

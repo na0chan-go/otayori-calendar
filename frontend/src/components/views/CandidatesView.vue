@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import RegistrationPreview from '../RegistrationPreview.vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
 import type { ExtractedEvent } from '../../types'
 
@@ -33,6 +34,7 @@ type DateFilter = 'all' | 'upcoming' | 'past'
 const statusFilter = ref<StatusFilter>('all')
 const dateFilter = ref<DateFilter>('all')
 const expandedCandidateIds = ref<string[]>([])
+const previewEvents = ref<ExtractedEvent[]>([])
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'すべて' },
@@ -93,6 +95,29 @@ function toggleCandidate(id: string) {
     ? expandedCandidateIds.value.filter((candidateId) => candidateId !== id)
     : [...expandedCandidateIds.value, id]
 }
+
+function openSinglePreview(event: ExtractedEvent) {
+  previewEvents.value = [event]
+}
+
+function openBulkPreview() {
+  if (!canBulkRegisterSelectedEvents()) return
+  const selectedIds = new Set(selectedCandidateIds.value)
+  previewEvents.value = extractedEvents.value.filter((event) => selectedIds.has(event.id))
+}
+
+function closePreview() {
+  previewEvents.value = []
+}
+
+async function confirmPreview() {
+  if (previewEvents.value.length === 1) {
+    await registerExtractedEvent(previewEvents.value[0])
+  } else {
+    await bulkRegisterExtractedEvents()
+  }
+  closePreview()
+}
 </script>
 
 <template>
@@ -145,7 +170,7 @@ function toggleCandidate(id: string) {
       <div class="bulk-actions">
         <button class="secondary-button" :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''" type="button" @click="bulkConfirmExtractedEvents">{{ bulkCandidateAction === 'confirm' ? '確認中...' : '確認済みにする' }}</button>
         <button class="secondary-button" :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''" type="button" @click="bulkIgnoreExtractedEvents">{{ bulkCandidateAction === 'ignore' ? '除外中...' : '除外する' }}</button>
-        <button class="primary-button" :disabled="!canBulkRegisterSelectedEvents() || bulkCandidateAction !== ''" type="button" @click="bulkRegisterExtractedEvents">{{ bulkCandidateAction === 'register' ? '登録中...' : 'カレンダーへ登録' }}</button>
+        <button class="primary-button" :disabled="!canBulkRegisterSelectedEvents() || bulkCandidateAction !== ''" type="button" @click="openBulkPreview">カレンダーへ登録</button>
       </div>
       <p v-if="hasUnregisterableSelectedEvents()" class="bulk-guidance">
         一括登録するには、選択中の予定候補を先に一括確認してください。
@@ -207,8 +232,8 @@ function toggleCandidate(id: string) {
           <button v-if="event.status === 'ignored'" class="secondary-button" :disabled="savingCandidateId === event.id" type="button" @click="restoreIgnoredExtractedEvent(event)">
             {{ savingCandidateId === event.id ? '取消中...' : '除外を取り消す' }}
           </button>
-          <button v-if="canRegisterExtractedEvent(event)" class="primary-button" :disabled="registeringCandidateId === event.id" type="button" @click="registerExtractedEvent(event)">
-            {{ registeringCandidateId === event.id ? '登録中...' : 'Googleカレンダーに登録' }}
+          <button v-if="canRegisterExtractedEvent(event)" class="primary-button" :disabled="registeringCandidateId === event.id" type="button" @click="openSinglePreview(event)">
+            Googleカレンダーに登録
           </button>
           <button
             class="secondary-button"
@@ -231,4 +256,11 @@ function toggleCandidate(id: string) {
     </div>
     <p v-if="candidateMessage" class="notice success-notice">{{ candidateMessage }}</p>
   </section>
+  <RegistrationPreview
+    v-if="previewEvents.length > 0"
+    :events="previewEvents"
+    :registering="registeringCandidateId !== '' || bulkCandidateAction === 'register'"
+    @close="closePreview"
+    @confirm="confirmPreview"
+  />
 </template>
