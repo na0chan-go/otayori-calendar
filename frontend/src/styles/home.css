@@ -150,3 +150,62 @@
   color: var(--muted);
   font-size: 1.4rem;
 }
+.important-events {
+  margin-top: 58px;
+}
+
+.important-event-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.important-event-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+  padding: 18px;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.important-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.important-event-meta time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.important-event-type {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.important-event-type.belongings {
+  color: #245b40;
+  background: var(--mint);
+}
+
+.important-event-type.deadline {
+  color: #6b572d;
+  background: var(--sand);
+}
+
+.important-event-card small {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}

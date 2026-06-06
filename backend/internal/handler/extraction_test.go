@@ -9,6 +9,7 @@ import (
 func TestValidateExtractionOutput(t *testing.T) {
 	start := "15:00"
 	end := "16:00"
+	deadline := "2026-06-10"
 	events, err := validateExtractionOutput(uuid.New(), extractionOutput{
 		Events: []extractionEvent{
 			{
@@ -16,6 +17,8 @@ func TestValidateExtractionOutput(t *testing.T) {
 				Date:       "2026-06-12",
 				StartTime:  &start,
 				EndTime:    &end,
+				Belongings: "スリッパ",
+				Deadline:   &deadline,
 				Confidence: 0.88,
 				SourceText: "6月12日（金）保護者会があります。",
 			},
@@ -34,6 +37,12 @@ func TestValidateExtractionOutput(t *testing.T) {
 	if events[0].StartTime == nil || events[0].StartTime.String() != "15:00:00" {
 		t.Fatalf("expected normalized start time, got %#v", events[0].StartTime)
 	}
+	if events[0].Belongings != "スリッパ" {
+		t.Fatalf("expected belongings, got %q", events[0].Belongings)
+	}
+	if events[0].SubmissionDeadline == nil || events[0].SubmissionDeadline.Format("2006-01-02") != deadline {
+		t.Fatalf("expected submission deadline, got %#v", events[0].SubmissionDeadline)
+	}
 }
 
 func TestValidateExtractionOutputRejectsInvalidConfidence(t *testing.T) {
@@ -43,6 +52,23 @@ func TestValidateExtractionOutputRejectsInvalidConfidence(t *testing.T) {
 				Title:      "身体測定",
 				Date:       "2026-06-12",
 				Confidence: 1.2,
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestValidateExtractionOutputRejectsInvalidSubmissionDeadline(t *testing.T) {
+	deadline := "6月10日"
+	_, err := validateExtractionOutput(uuid.New(), extractionOutput{
+		Events: []extractionEvent{
+			{
+				Title:      "保護者会",
+				Date:       "2026-06-12",
+				Deadline:   &deadline,
+				Confidence: 0.8,
 			},
 		},
 	})

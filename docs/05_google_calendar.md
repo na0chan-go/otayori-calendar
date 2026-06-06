@@ -77,7 +77,8 @@ google_calendar_event_id
 | 午前中 | 終日予定 + descriptionに原文保存 |
 | 登園時 | 終日予定 + descriptionに原文保存 |
 | 提出期限 | 終日予定 |
-| 持ち物 | descriptionに保存 |
+| 持ち物 | belongingsへ保存し、登録時にdescriptionへ「持ち物: ...」として反映 |
+| 提出期限 | submission_deadlineへ保存し、登録時にdescriptionへ「提出期限: ...」として反映 |
 
 ## Failure Handling
 

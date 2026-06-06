@@ -379,6 +379,8 @@ function toEventDraft(event: ExtractedEvent): ExtractedEventDraft {
     is_all_day: event.is_all_day,
     location: event.location ?? '',
     description: event.description ?? '',
+    belongings: event.belongings ?? '',
+    submission_deadline: event.submission_deadline?.slice(0, 10) ?? '',
   }
 }
 

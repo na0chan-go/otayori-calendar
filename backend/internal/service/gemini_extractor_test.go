@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,6 +29,10 @@ func TestGeminiExtractorExtractsFromOCRText(t *testing.T) {
 		}
 		if request.GenerationConfig.ResponseMimeType != "application/json" {
 			t.Fatal("expected JSON response MIME type")
+		}
+		schema := request.GenerationConfig.ResponseSchema
+		if !strings.Contains(fmt.Sprint(schema), "belongings") || !strings.Contains(fmt.Sprint(schema), "submission_deadline") {
+			t.Fatal("expected belongings and submission deadline in response schema")
 		}
 
 		w.Header().Set("Content-Type", "application/json")

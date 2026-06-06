@@ -19,6 +19,23 @@ const unfinishedLetterCount = computed(() =>
     return progress.label !== '完了'
   }).length,
 )
+
+const upcomingImportantEvents = computed(() => {
+  const today = new Date()
+  const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+  return extractedEvents.value
+    .filter((event) => event.status !== 'ignored' && importantEventDate(event, localToday) !== '')
+    .sort((a, b) => importantEventDate(a, localToday).localeCompare(importantEventDate(b, localToday)))
+    .slice(0, 3)
+})
+
+function importantEventDate(event: (typeof extractedEvents.value)[number], localToday = '') {
+  const deadline = event.submission_deadline?.slice(0, 10) ?? ''
+  if (deadline && (!localToday || deadline >= localToday)) return deadline
+  const eventDate = event.event_date.slice(0, 10)
+  if (event.belongings && (!localToday || eventDate >= localToday)) return eventDate
+  return ''
+}
 </script>
 
 <template>
@@ -44,6 +61,25 @@ const unfinishedLetterCount = computed(() =>
     <button class="summary-card white" type="button" @click="switchView('letters')">
       <span>おたより</span><strong>{{ letters.length }}</strong><small>アップロード済み</small>
     </button>
+  </section>
+
+  <section v-if="upcomingImportantEvents.length > 0" class="important-events">
+    <div class="section-heading">
+      <div><p class="section-kicker">Don't forget</p><h2>直近の持ち物・提出期限</h2></div>
+      <button class="text-button" type="button" @click="switchView('candidates')">候補を確認</button>
+    </div>
+    <div class="important-event-grid">
+      <button v-for="event in upcomingImportantEvents" :key="event.id" class="important-event-card" type="button" @click="switchView('candidates')">
+        <div class="important-event-meta">
+          <span v-if="event.belongings" class="important-event-type belongings">持ち物</span>
+          <span v-if="event.submission_deadline" class="important-event-type deadline">提出期限</span>
+          <time>{{ importantEventDate(event) }}</time>
+        </div>
+        <strong>{{ event.title }}</strong>
+        <small v-if="event.belongings">{{ event.belongings }}</small>
+        <small v-if="event.submission_deadline">この日までに提出</small>
+      </button>
+    </div>
   </section>
 
   <section class="next-actions">

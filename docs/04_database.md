@@ -61,6 +61,8 @@ CREATE TABLE extracted_events (
   is_all_day BOOLEAN NOT NULL DEFAULT true,
   location TEXT,
   description TEXT,
+  belongings TEXT,
+  submission_deadline DATE,
   confidence NUMERIC(3,2),
   source_text TEXT,
   google_calendar_event_id TEXT,
@@ -95,6 +97,7 @@ CREATE INDEX idx_extracted_events_google_calendar_event_id ON extracted_events(g
 
 - `google_calendar_event_id` が存在する予定は再登録しない。
 - `source_text` にはAIが予定候補と判断した根拠となる原文を保存する。
+- `belongings` は予定に必要な持ち物、`submission_deadline` は提出期限を予定情報と分けて保存する。
 - `confidence` はAI抽出結果の確信度として扱い、低い場合はUIで警告表示する。
 - token類は平文保存せず、実装時には暗号化を検討する。
 - `letters.image_path` は内部保存パスであり、APIレスポンスでは直接返さない。

@@ -498,7 +498,7 @@ func newExtractedCalendarEventResponse(event model.ExtractedEvent, timeZone stri
 		EventDate:             event.EventDate,
 		IsAllDay:              event.IsAllDay,
 		Location:              event.Location,
-		Description:           event.Description,
+		Description:           extractedEventCalendarDescription(event),
 		TimeZone:              timeZone,
 		GoogleCalendarEventID: event.GoogleCalendarEventID,
 		Status:                event.Status,

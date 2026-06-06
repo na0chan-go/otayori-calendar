@@ -37,6 +37,8 @@ type extractionEvent struct {
 	IsAllDay    bool    `json:"is_all_day"`
 	Location    string  `json:"location"`
 	Description string  `json:"description"`
+	Belongings  string  `json:"belongings"`
+	Deadline    *string `json:"submission_deadline"`
 	Confidence  float64 `json:"confidence"`
 	SourceText  string  `json:"source_text"`
 }
@@ -265,6 +267,11 @@ func validateExtractionEvent(letterID uuid.UUID, event extractionEvent) (model.E
 		return model.ExtractedEvent{}, errors.New("confidence must be between 0 and 1")
 	}
 
+	submissionDeadline, err := normalizeOptionalDate(event.Deadline, "submission_deadline")
+	if err != nil {
+		return model.ExtractedEvent{}, err
+	}
+
 	startTime, err := normalizeOptionalClock(event.StartTime, "start_time")
 	if err != nil {
 		return model.ExtractedEvent{}, err
@@ -282,18 +289,32 @@ func validateExtractionEvent(letterID uuid.UUID, event extractionEvent) (model.E
 	}
 
 	return model.ExtractedEvent{
-		LetterID:    letterID,
-		Title:       title,
-		EventDate:   eventDate,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		IsAllDay:    isAllDay,
-		Location:    strings.TrimSpace(event.Location),
-		Description: strings.TrimSpace(event.Description),
-		Confidence:  event.Confidence,
-		SourceText:  strings.TrimSpace(event.SourceText),
-		Status:      model.ExtractedEventStatusDraft,
+		LetterID:           letterID,
+		Title:              title,
+		EventDate:          eventDate,
+		StartTime:          startTime,
+		EndTime:            endTime,
+		IsAllDay:           isAllDay,
+		Location:           strings.TrimSpace(event.Location),
+		Description:        strings.TrimSpace(event.Description),
+		Belongings:         strings.TrimSpace(event.Belongings),
+		SubmissionDeadline: submissionDeadline,
+		Confidence:         event.Confidence,
+		SourceText:         strings.TrimSpace(event.SourceText),
+		Status:             model.ExtractedEventStatusDraft,
 	}, nil
+}
+
+func normalizeOptionalDate(value *string, fieldName string) (*time.Time, error) {
+	if value == nil || strings.TrimSpace(*value) == "" {
+		return nil, nil
+	}
+
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(*value))
+	if err != nil {
+		return nil, fmt.Errorf("%s must be YYYY-MM-DD", fieldName)
+	}
+	return &parsed, nil
 }
 
 func normalizeOptionalClock(value *string, fieldName string) (*datatypes.Time, error) {

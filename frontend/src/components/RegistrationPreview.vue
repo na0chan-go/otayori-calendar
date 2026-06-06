@@ -74,6 +74,8 @@ function sourceLabel(event: CalendarEvent) {
           <dl>
             <div><dt>時間</dt><dd>{{ timeLabel(event) }}</dd></div>
             <div v-if="event.location"><dt>場所</dt><dd>{{ event.location }}</dd></div>
+            <div v-if="event.belongings"><dt>持ち物</dt><dd>{{ event.belongings }}</dd></div>
+            <div v-if="event.submission_deadline"><dt>提出期限</dt><dd>{{ event.submission_deadline.slice(0, 10) }}</dd></div>
             <div v-if="event.description"><dt>説明</dt><dd>{{ event.description }}</dd></div>
           </dl>
           <div v-if="event.confidence < 0.7 || isDuplicate(event)" class="preview-warnings">
