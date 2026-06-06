@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 type User = {
   id: string
@@ -100,6 +100,8 @@ const eventDrafts = ref<Record<string, ExtractedEventDraft>>({})
 const ocrTextByLetter = ref<Record<string, string>>({})
 const letterTitle = ref('')
 const letterImage = ref<File | null>(null)
+const activeView = ref<'home' | 'letters' | 'candidates' | 'calendar'>('home')
+const showManualEventForm = ref(false)
 const manualEvent = ref({
   title: '',
   event_date: '',
@@ -109,6 +111,44 @@ const manualEvent = ref({
   location: '',
   description: '',
 })
+
+const pendingCandidateCount = computed(
+  () => extractedEvents.value.filter((event) => event.status === 'draft').length,
+)
+const readyCandidateCount = computed(
+  () => extractedEvents.value.filter((event) => canRegisterExtractedEvent(event)).length,
+)
+const attentionCalendarCount = computed(
+  () => calendarEvents.value.filter((event) => event.status === 'failed' || event.status === 'deleted').length,
+)
+
+const extractedStatusLabels: Record<string, string> = {
+  draft: '未確認',
+  confirmed: '確認済み',
+  ignored: '除外済み',
+  registered: '登録済み',
+  failed: '登録失敗',
+  deleted: '削除済み',
+}
+
+const calendarStatusLabels: Record<string, string> = {
+  registered: '登録済み',
+  failed: '登録失敗',
+  deleted: 'カレンダーから削除済み',
+}
+
+function extractedStatusLabel(status: string) {
+  return extractedStatusLabels[status] ?? status
+}
+
+function calendarStatusLabel(status: string) {
+  return calendarStatusLabels[status] ?? status
+}
+
+function switchView(view: 'home' | 'letters' | 'candidates' | 'calendar') {
+  activeView.value = view
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
 
 async function loadMe() {
   loading.value = true
@@ -673,80 +713,127 @@ onMounted(loadMe)
 
 <template>
   <main class="page-shell">
-    <section class="hero-card">
+    <div v-if="loading" class="loading-screen">
+      <span class="loading-dot"></span>
+      <p>カレンダーを準備しています</p>
+    </div>
+
+    <section v-else-if="!user" class="login-shell">
+      <div class="login-mark">OC</div>
       <p class="eyebrow">Otayori Calendar</p>
-      <h1>おたよりの予定を、Googleカレンダーへ。</h1>
-      <p class="lead">
-        まずはGoogleアカウントでログインして、カレンダー連携の準備をします。
-      </p>
+      <h1>家族の予定に、<br />見落とさない安心を。</h1>
+      <p class="lead">園から届くおたよりを読み取り、大切な予定をGoogleカレンダーへまとめます。</p>
+      <button class="primary-button login-button" type="button" @click="loginWithGoogle">Googleでログイン</button>
+      <p class="hint">Googleカレンダーへの登録に必要な権限だけを使用します。</p>
+    </section>
 
-      <div v-if="loading" class="panel">ログイン状態を確認しています...</div>
+    <div v-else class="app-layout">
+      <header class="app-header">
+        <a class="brand" href="#top" aria-label="トップへ">
+          <span class="brand-mark">OC</span>
+          <span><strong>おたよりカレンダー</strong><small>家族の予定を、ひとつに</small></span>
+        </a>
+        <div class="account">
+          <span class="account-avatar">{{ (user.name || user.email).slice(0, 1) }}</span>
+          <span class="account-copy"><strong>{{ user.name || 'ログイン中' }}</strong><small>{{ user.email }}</small></span>
+          <button class="text-button" type="button" @click="logout">ログアウト</button>
+        </div>
+      </header>
 
-      <div v-else-if="user" class="panel signed-in">
-        <p class="label">ログイン中</p>
-        <h2>{{ user.name || user.email }}</h2>
-        <p>{{ user.email }}</p>
-        <button class="ghost-button" type="button" @click="logout">ログアウト</button>
-      </div>
-
-      <form v-if="user" class="event-form" @submit.prevent="uploadLetter">
-        <p class="label">おたより画像</p>
-        <label>
-          タイトル
-          <input v-model="letterTitle" type="text" placeholder="6月のおたより" />
-        </label>
-        <label>
-          画像
-          <input accept="image/jpeg,image/png,image/webp" required type="file" @change="onLetterImageChange" />
-        </label>
-        <button class="google-button" :disabled="uploadingLetter" type="submit">
-          {{ uploadingLetter ? 'アップロード中...' : '画像をアップロード' }}
-        </button>
-        <p v-if="letterMessage" class="success">{{ letterMessage }}</p>
-      </form>
-
-      <section v-if="user" class="letters-section">
-        <p class="label">アップロード済み</p>
-        <div v-if="letters.length === 0" class="empty-state">まだおたより画像はありません。</div>
-        <article v-for="letter in letters" :key="letter.id" class="letter-card">
-          <img v-if="letter.object_url" :src="letter.object_url" :alt="letter.title || 'おたより画像'" />
+      <div id="top" class="content-shell">
+        <section v-if="activeView === 'home'" class="welcome-panel">
           <div>
-            <h3>{{ letter.title || '無題のおたより' }}</h3>
-            <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
-            <button
-              class="danger-button"
-              :disabled="deletingLetterId === letter.id || extractingLetterId === letter.id"
-              type="button"
-              @click="deleteLetter(letter)"
-            >
-              {{ deletingLetterId === letter.id ? '削除中...' : 'おたよりを削除' }}
-            </button>
+            <p class="eyebrow">Family dashboard</p>
+            <h1>{{ user.name || 'こんにちは' }}さん、<br />今日も予定を整えましょう。</h1>
+            <p class="lead">おたよりを追加して、確認が必要な予定だけをすばやく片付けられます。</p>
           </div>
-          <div class="ocr-panel">
-            <label>
-              OCRテキスト（任意）
-              <textarea
-                v-model="ocrTextByLetter[letter.id]"
-                rows="4"
-                placeholder="空欄の場合はアップロード画像からAI抽出します。"
-              ></textarea>
-            </label>
-            <p class="source-text">OCRテキストを入力すると、画像ではなくテキストをAIへ送信します。</p>
-            <button
-              class="ghost-button"
-              :disabled="extractingLetterId === letter.id"
-              type="button"
-              @click="extractEvents(letter)"
-            >
-              {{ extractingLetterId === letter.id ? 'AI抽出中...' : 'AIで予定候補を抽出' }}
-            </button>
-          </div>
-        </article>
-      </section>
+          <button class="primary-button" type="button" @click="switchView('letters')">おたよりを追加</button>
+        </section>
 
-      <section v-if="user && extractedEvents.length > 0" class="letters-section">
-        <p class="label">予定候補の確認</p>
-        <div class="bulk-toolbar">
+        <section v-if="activeView === 'home'" class="summary-grid" aria-label="現在の状況">
+          <button class="summary-card mint" type="button" @click="switchView('candidates')">
+            <span>確認待ち</span><strong>{{ pendingCandidateCount }}</strong><small>予定候補</small>
+          </button>
+          <button class="summary-card lime" type="button" @click="switchView('candidates')">
+            <span>登録できる予定</span><strong>{{ readyCandidateCount }}</strong><small>確認済み・再登録</small>
+          </button>
+          <button class="summary-card sand" type="button" @click="switchView('calendar')">
+            <span>要対応</span><strong>{{ attentionCalendarCount }}</strong><small>失敗・削除済み</small>
+          </button>
+          <button class="summary-card white" type="button" @click="switchView('letters')">
+            <span>おたより</span><strong>{{ letters.length }}</strong><small>アップロード済み</small>
+          </button>
+        </section>
+
+        <section v-if="activeView === 'home'" class="next-actions">
+          <div class="section-heading">
+            <div><p class="section-kicker">Next actions</p><h2>次にやること</h2></div>
+            <p>いま対応が必要な操作だけを表示しています。</p>
+          </div>
+          <button v-if="pendingCandidateCount > 0" class="next-action-card" type="button" @click="switchView('candidates')">
+            <span class="next-action-number">{{ pendingCandidateCount }}</span>
+            <span><strong>未確認の予定候補があります</strong><small>内容を確認してカレンダーへ登録しましょう</small></span>
+            <span class="next-action-arrow">→</span>
+          </button>
+          <button v-if="attentionCalendarCount > 0" class="next-action-card attention" type="button" @click="switchView('calendar')">
+            <span class="next-action-number">{{ attentionCalendarCount }}</span>
+            <span><strong>カレンダー予定に確認が必要です</strong><small>失敗・削除済みの予定を確認しましょう</small></span>
+            <span class="next-action-arrow">→</span>
+          </button>
+          <button class="next-action-card" type="button" @click="switchView('letters')">
+            <span class="next-action-number">＋</span>
+            <span><strong>新しいおたよりを追加</strong><small>園から届いた画像を予定に変換します</small></span>
+            <span class="next-action-arrow">→</span>
+          </button>
+        </section>
+
+        <p v-if="errorMessage" class="notice error-notice">{{ errorMessage }}</p>
+        <p v-if="letterMessage" class="notice success-notice">{{ letterMessage }}</p>
+
+        <section v-if="activeView === 'letters'" id="upload" class="workspace-section view-section">
+          <div class="section-heading">
+            <div><p class="section-kicker">Step 1</p><h2>おたよりを追加</h2></div>
+            <p>写真を選ぶだけで、AIが予定候補を探します。</p>
+          </div>
+          <form class="surface form-grid upload-form" @submit.prevent="uploadLetter">
+            <label>おたよりの名前<input v-model="letterTitle" type="text" placeholder="例：6月のえんだより" /></label>
+            <label class="file-field">画像を選択<input accept="image/jpeg,image/png,image/webp" required type="file" @change="onLetterImageChange" /><span>{{ letterImage?.name || 'JPEG・PNG・WebP' }}</span></label>
+            <button class="primary-button" :disabled="uploadingLetter" type="submit">{{ uploadingLetter ? 'アップロード中...' : 'アップロードする' }}</button>
+          </form>
+        </section>
+
+        <section v-if="activeView === 'letters'" id="letters" class="workspace-section">
+          <div class="section-heading">
+            <div><p class="section-kicker">Letters</p><h2>アップロード済み</h2></div>
+            <p>{{ letters.length }}件のおたよりがあります。</p>
+          </div>
+          <div v-if="letters.length === 0" class="empty-state">まだおたよりはありません。最初の1枚を追加しましょう。</div>
+          <div class="letter-grid">
+            <article v-for="letter in letters" :key="letter.id" class="surface letter-card">
+              <img v-if="letter.object_url" :src="letter.object_url" :alt="letter.title || 'おたより画像'" />
+              <div class="letter-summary">
+                <p class="section-kicker">Uploaded</p><h3>{{ letter.title || '無題のおたより' }}</h3>
+                <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
+              </div>
+              <div class="ocr-panel">
+                <label>補足テキスト（任意）<textarea v-model="ocrTextByLetter[letter.id]" rows="3" placeholder="画像が読みづらい場合だけ入力してください"></textarea></label>
+                <p class="helper-text">空欄なら画像から予定を読み取ります。</p>
+                <div class="button-row">
+                  <button class="primary-button" :disabled="extractingLetterId === letter.id" type="button" @click="extractEvents(letter)">{{ extractingLetterId === letter.id ? '予定を探しています...' : '予定候補を見つける' }}</button>
+                  <button class="danger-button" :disabled="deletingLetterId === letter.id || extractingLetterId === letter.id" type="button" @click="deleteLetter(letter)">{{ deletingLetterId === letter.id ? '削除中...' : '削除' }}</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'candidates'" id="candidates" class="workspace-section view-section">
+          <div class="section-heading">
+            <div><p class="section-kicker">Step 2</p><h2>予定候補を確認</h2></div>
+            <p>内容を確認してから、Googleカレンダーへ登録します。</p>
+          </div>
+          <div v-if="extractedEvents.length === 0" class="empty-state">おたよりから予定候補を見つけると、ここに表示されます。</div>
+        <div v-if="extractedEvents.length > 0" class="bulk-toolbar">
           <label class="checkbox-label bulk-select-label">
             <input
               :checked="allSelectableCandidatesSelected()"
@@ -756,32 +843,11 @@ onMounted(loadMe)
             />
             まとめて選択
           </label>
-          <p>{{ selectedCandidateIds.length }}件選択中</p>
+          <p><strong>{{ selectedCandidateIds.length }}件</strong> 選択中</p>
           <div class="bulk-actions">
-            <button
-              class="ghost-button"
-              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
-              type="button"
-              @click="bulkConfirmExtractedEvents"
-            >
-              {{ bulkCandidateAction === 'confirm' ? '確認中...' : '一括確認' }}
-            </button>
-            <button
-              class="ghost-button"
-              :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''"
-              type="button"
-              @click="bulkIgnoreExtractedEvents"
-            >
-              {{ bulkCandidateAction === 'ignore' ? '除外中...' : '一括除外' }}
-            </button>
-            <button
-              class="google-button"
-              :disabled="!canBulkRegisterSelectedEvents() || bulkCandidateAction !== ''"
-              type="button"
-              @click="bulkRegisterExtractedEvents"
-            >
-              {{ bulkCandidateAction === 'register' ? '登録中...' : '一括登録' }}
-            </button>
+            <button class="secondary-button" :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''" type="button" @click="bulkConfirmExtractedEvents">{{ bulkCandidateAction === 'confirm' ? '確認中...' : '確認済みにする' }}</button>
+            <button class="secondary-button" :disabled="selectedCandidateIds.length === 0 || bulkCandidateAction !== ''" type="button" @click="bulkIgnoreExtractedEvents">{{ bulkCandidateAction === 'ignore' ? '除外中...' : '除外する' }}</button>
+            <button class="primary-button" :disabled="!canBulkRegisterSelectedEvents() || bulkCandidateAction !== ''" type="button" @click="bulkRegisterExtractedEvents">{{ bulkCandidateAction === 'register' ? '登録中...' : 'カレンダーへ登録' }}</button>
           </div>
           <p v-if="hasUnregisterableSelectedEvents()" class="bulk-guidance">
             一括登録するには、選択中の予定候補を先に一括確認してください。
@@ -790,8 +856,8 @@ onMounted(loadMe)
         <article
           v-for="event in extractedEvents"
           :key="event.id"
-          class="candidate-card"
-          :class="{ ignored: event.status === 'ignored' }"
+          class="surface candidate-card"
+          :class="[`status-${event.status}`, { ignored: event.status === 'ignored' }]"
         >
           <div class="candidate-heading">
             <div class="candidate-title-row">
@@ -804,10 +870,10 @@ onMounted(loadMe)
                 />
                 <span>選択</span>
               </label>
-              <p class="status-chip">{{ event.status }}</p>
+              <p class="status-chip">{{ extractedStatusLabel(event.status) }}</p>
               <h3>{{ event.title }}</h3>
             </div>
-            <p v-if="event.confidence < 0.7" class="warning-chip">要確認</p>
+            <p v-if="event.confidence < 0.7" class="warning-chip">読み取り要確認</p>
           </div>
 
           <form v-if="eventDrafts[event.id]" class="candidate-form" @submit.prevent="saveExtractedEvent(event)">
@@ -852,7 +918,7 @@ onMounted(loadMe)
             <div class="candidate-actions">
               <button
                 v-if="event.status !== 'ignored'"
-                class="google-button"
+                class="primary-button"
                 :disabled="savingCandidateId === event.id || !canEditExtractedEvent(event)"
                 type="submit"
               >
@@ -860,7 +926,7 @@ onMounted(loadMe)
               </button>
               <button
                 v-if="event.status === 'ignored'"
-                class="ghost-button"
+                class="secondary-button"
                 :disabled="savingCandidateId === event.id"
                 type="button"
                 @click="restoreIgnoredExtractedEvent(event)"
@@ -869,7 +935,7 @@ onMounted(loadMe)
               </button>
               <button
                 v-if="canRegisterExtractedEvent(event)"
-                class="google-button"
+                class="primary-button"
                 :disabled="registeringCandidateId === event.id"
                 type="button"
                 @click="registerExtractedEvent(event)"
@@ -877,7 +943,7 @@ onMounted(loadMe)
                 {{ registeringCandidateId === event.id ? '登録中...' : 'Googleカレンダーに登録' }}
               </button>
               <button
-                class="ghost-button"
+                class="secondary-button"
                 :disabled="
                   savingCandidateId === event.id ||
                   registeringCandidateId === event.id ||
@@ -893,27 +959,29 @@ onMounted(loadMe)
           </form>
 
           <div class="source-box">
-            <p>confidence: {{ event.confidence.toFixed(2) }}</p>
+            <p>読み取り確度 {{ Math.round(event.confidence * 100) }}%</p>
             <p>{{ event.source_text || '元テキストはありません。' }}</p>
           </div>
         </article>
-        <p v-if="candidateMessage" class="success">{{ candidateMessage }}</p>
+        <p v-if="candidateMessage" class="notice success-notice">{{ candidateMessage }}</p>
       </section>
 
-      <section v-if="user" class="letters-section">
-        <p class="label">登録済み・失敗予定</p>
-        <div v-if="calendarEvents.length === 0" class="empty-state">
-          まだGoogleカレンダー登録済みの予定はありません。
-        </div>
+        <section v-if="activeView === 'calendar'" id="calendar" class="workspace-section view-section">
+          <div class="section-heading">
+            <div><p class="section-kicker">Calendar</p><h2>カレンダー登録状況</h2></div>
+            <p>登録後の予定と、対応が必要な予定を確認できます。</p>
+          </div>
+          <div v-if="calendarEvents.length === 0" class="empty-state">Googleカレンダーへ登録した予定はまだありません。</div>
+          <div class="calendar-grid">
         <article
           v-for="event in calendarEvents"
           :key="`${event.source_type}-${event.id}`"
-          class="registered-event-card"
+          class="surface registered-event-card"
           :class="{ failed: event.status === 'failed', deleted: event.status === 'deleted' }"
         >
           <div class="candidate-heading">
             <div>
-              <p class="status-chip">{{ event.status }}</p>
+              <p class="status-chip">{{ calendarStatusLabel(event.status) }}</p>
               <h3>{{ event.title }}</h3>
             </div>
             <p class="source-type-chip">{{ event.source_type === 'manual' ? '手入力' : 'おたより候補' }}</p>
@@ -921,16 +989,17 @@ onMounted(loadMe)
           <p>{{ new Date(event.event_date).toLocaleDateString('ja-JP') }} / {{ formatCalendarEventTime(event) }}</p>
           <p v-if="event.location">{{ event.location }}</p>
           <p v-if="event.description">{{ event.description }}</p>
-          <p v-if="event.google_calendar_event_id" class="source-text">
-            Google Event ID: {{ event.google_calendar_event_id }}
-          </p>
+          <details v-if="event.google_calendar_event_id" class="technical-details">
+            <summary>登録情報を表示</summary>
+            <p class="source-text">Google Event ID: {{ event.google_calendar_event_id }}</p>
+          </details>
           <p v-if="event.status === 'deleted'" class="error">
             Googleカレンダー上で削除されています。
           </p>
           <p v-else-if="!event.google_calendar_event_id" class="error">Googleカレンダー登録に失敗しています。</p>
           <button
             v-if="canRetryCalendarEvent(event)"
-            class="ghost-button"
+            class="secondary-button"
             :disabled="retryingCalendarEventId === event.id"
             type="button"
             @click="retryCalendarEvent(event)"
@@ -938,55 +1007,37 @@ onMounted(loadMe)
             {{ retryingCalendarEventId === event.id ? '再実行中...' : '再登録する' }}
           </button>
         </article>
-        <p v-if="calendarMessage" class="success">{{ calendarMessage }}</p>
+          </div>
+          <p v-if="calendarMessage" class="notice success-notice">{{ calendarMessage }}</p>
       </section>
 
-      <form v-if="user" class="event-form" @submit.prevent="createManualEvent">
-        <p class="label">手入力予定</p>
-        <label>
-          予定名
-          <input v-model="manualEvent.title" required type="text" placeholder="身体測定" />
-        </label>
-        <label>
-          日付
-          <input v-model="manualEvent.event_date" required type="date" />
-        </label>
-        <label class="checkbox-label">
-          <input v-model="manualEvent.is_all_day" type="checkbox" />
-          終日予定として登録する
-        </label>
-        <div v-if="!manualEvent.is_all_day" class="time-grid">
-          <label>
-            開始
-            <input v-model="manualEvent.start_time" required type="time" />
-          </label>
-          <label>
-            終了
-            <input v-model="manualEvent.end_time" required type="time" />
-          </label>
-        </div>
-        <label>
-          場所
-          <input v-model="manualEvent.location" type="text" placeholder="保育園" />
-        </label>
-        <label>
-          メモ
-          <textarea v-model="manualEvent.description" rows="3" placeholder="持ち物など"></textarea>
-        </label>
-        <button class="google-button" :disabled="savingEvent" type="submit">
-          {{ savingEvent ? '登録中...' : 'Googleカレンダーに登録' }}
-        </button>
-        <p v-if="eventMessage" class="success">{{ eventMessage }}</p>
-      </form>
-
-      <div v-else class="actions">
-        <button class="google-button" type="button" @click="loginWithGoogle">
-          Googleでログイン
-        </button>
-        <p class="hint">Google Calendar API の許可画面へ移動します。</p>
+        <section v-if="activeView === 'calendar'" id="manual" class="workspace-section manual-section">
+          <button class="manual-toggle" type="button" @click="showManualEventForm = !showManualEventForm">
+            <span><strong>予定を手入力</strong><small>おたよりにない予定を追加</small></span>
+            <span>{{ showManualEventForm ? '閉じる' : '＋ 追加する' }}</span>
+          </button>
+          <form v-if="showManualEventForm" class="surface form-grid" @submit.prevent="createManualEvent">
+            <label>予定名<input v-model="manualEvent.title" required type="text" placeholder="例：身体測定" /></label>
+            <label>日付<input v-model="manualEvent.event_date" required type="date" /></label>
+            <label class="checkbox-label"><input v-model="manualEvent.is_all_day" type="checkbox" />終日予定として登録する</label>
+            <div v-if="!manualEvent.is_all_day" class="time-grid">
+              <label>開始<input v-model="manualEvent.start_time" required type="time" /></label>
+              <label>終了<input v-model="manualEvent.end_time" required type="time" /></label>
+            </div>
+            <label>場所<input v-model="manualEvent.location" type="text" placeholder="例：保育園" /></label>
+            <label>メモ<textarea v-model="manualEvent.description" rows="3" placeholder="持ち物や注意事項"></textarea></label>
+            <button class="primary-button" :disabled="savingEvent" type="submit">{{ savingEvent ? '登録中...' : 'Googleカレンダーへ登録' }}</button>
+            <p v-if="eventMessage" class="notice success-notice">{{ eventMessage }}</p>
+          </form>
+        </section>
       </div>
 
-      <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
-    </section>
+      <nav class="bottom-nav" aria-label="画面切り替え">
+        <button :class="{ active: activeView === 'home' }" type="button" @click="switchView('home')"><span>⌂</span><small>ホーム</small></button>
+        <button :class="{ active: activeView === 'letters' }" type="button" @click="switchView('letters')"><span>▧</span><small>おたより</small></button>
+        <button :class="{ active: activeView === 'candidates' }" type="button" @click="switchView('candidates')"><span>✓</span><small>予定候補</small><b v-if="pendingCandidateCount">{{ pendingCandidateCount }}</b></button>
+        <button :class="{ active: activeView === 'calendar' }" type="button" @click="switchView('calendar')"><span>□</span><small>カレンダー</small><b v-if="attentionCalendarCount">{{ attentionCalendarCount }}</b></button>
+      </nav>
+    </div>
   </main>
 </template>
