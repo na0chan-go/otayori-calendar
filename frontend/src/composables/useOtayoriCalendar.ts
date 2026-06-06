@@ -9,6 +9,7 @@ export function useOtayoriCalendar() {
   const activeView = ref<ViewName>('home')
   const errorMessage = ref('')
   const loading = ref(true)
+  const showOnboardingGuide = ref(false)
   const user = ref<User | null>(null)
 
   const calendar = useCalendarEvents(errorMessage)
@@ -39,6 +40,7 @@ export function useOtayoriCalendar() {
 
       const body = (await response.json()) as { user: User }
       user.value = body.user
+      showOnboardingGuide.value = !localStorage.getItem(onboardingStorageKey(body.user.id))
       await Promise.all([letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '予期しないエラーが発生しました'
@@ -59,6 +61,15 @@ export function useOtayoriCalendar() {
     calendar.resetCalendarEvents()
   }
 
+  function openOnboardingGuide() {
+    showOnboardingGuide.value = true
+  }
+
+  function closeOnboardingGuide() {
+    showOnboardingGuide.value = false
+    if (user.value) localStorage.setItem(onboardingStorageKey(user.value.id), 'seen')
+  }
+
   onMounted(loadMe)
 
   return {
@@ -70,7 +81,14 @@ export function useOtayoriCalendar() {
     loading,
     loginWithGoogle,
     logout,
+    closeOnboardingGuide,
+    openOnboardingGuide,
+    showOnboardingGuide,
     switchView,
     user,
   }
+}
+
+function onboardingStorageKey(userId: string) {
+  return `otayori-calendar:onboarding:${userId}`
 }

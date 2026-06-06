@@ -3,6 +3,7 @@ import CalendarView from './components/views/CalendarView.vue'
 import CandidatesView from './components/views/CandidatesView.vue'
 import HomeView from './components/views/HomeView.vue'
 import LettersView from './components/views/LettersView.vue'
+import OnboardingGuide from './components/OnboardingGuide.vue'
 import { provideOtayoriCalendar } from './composables/otayoriCalendarContext'
 import { useOtayoriCalendar } from './composables/useOtayoriCalendar'
 
@@ -17,7 +18,9 @@ const {
   loading,
   loginWithGoogle,
   logout,
+  openOnboardingGuide,
   pendingCandidateCount,
+  showOnboardingGuide,
   switchView,
   user,
 } = calendar
@@ -48,6 +51,7 @@ const {
         <div class="account">
           <span class="account-avatar">{{ (user.name || user.email).slice(0, 1) }}</span>
           <span class="account-copy"><strong>{{ user.name || 'ログイン中' }}</strong><small>{{ user.email }}</small></span>
+          <button class="text-button guide-button" type="button" @click="openOnboardingGuide">使い方</button>
           <button class="text-button" type="button" @click="logout">ログアウト</button>
         </div>
       </header>
@@ -67,6 +71,7 @@ const {
         <button :class="{ active: activeView === 'candidates' }" type="button" @click="switchView('candidates')"><span>✓</span><small>予定候補</small><b v-if="pendingCandidateCount">{{ pendingCandidateCount }}</b></button>
         <button :class="{ active: activeView === 'calendar' }" type="button" @click="switchView('calendar')"><span>□</span><small>カレンダー</small><b v-if="attentionCalendarCount">{{ attentionCalendarCount }}</b></button>
       </nav>
+      <OnboardingGuide v-if="showOnboardingGuide" />
     </div>
   </main>
 </template>

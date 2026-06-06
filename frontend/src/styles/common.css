@@ -27,9 +27,26 @@
 }
 
 .empty-state {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
   color: var(--muted);
   padding: 28px;
   text-align: center;
+}
+
+.empty-state h3,
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state h3 {
+  color: var(--ink);
+}
+
+.empty-state p {
+  max-width: 480px;
+  line-height: 1.75;
 }
 
 .form-grid {

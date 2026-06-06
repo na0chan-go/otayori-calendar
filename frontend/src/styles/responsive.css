@@ -42,9 +42,22 @@
   }
 
   .brand small,
-  .account-copy,
-  .text-button {
+  .account-copy {
     display: none;
+  }
+
+  .account {
+    gap: 6px;
+  }
+
+  .text-button {
+    padding: 6px;
+    font-size: 0.72rem;
+  }
+
+  .guide-button {
+    border: 0;
+    background: transparent;
   }
 
   .content-shell {
@@ -146,5 +159,22 @@
 
   .bottom-nav {
     bottom: 10px;
+  }
+
+  .guide-backdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .guide-dialog {
+    max-height: 92vh;
+    overflow-y: auto;
+    border-radius: 24px 24px 0 0;
+    padding: 28px 20px;
+  }
+
+  .guide-statuses dl > div {
+    gap: 4px;
+    grid-template-columns: 1fr;
   }
 }

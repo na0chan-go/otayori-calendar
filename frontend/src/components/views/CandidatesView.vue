@@ -24,6 +24,7 @@ const {
   saveExtractedEvent,
   savingCandidateId,
   selectedCandidateIds,
+  switchView,
 } = useOtayoriCalendarContext()
 
 type StatusFilter = 'all' | 'draft' | 'confirmed' | 'ignored' | 'registered' | 'attention'
@@ -100,7 +101,11 @@ function toggleCandidate(id: string) {
       <div><p class="section-kicker">Step 2</p><h2>予定候補を確認</h2></div>
       <p>内容を確認してから、Googleカレンダーへ登録します。</p>
     </div>
-    <div v-if="extractedEvents.length === 0" class="empty-state">おたよりから予定候補を見つけると、ここに表示されます。</div>
+    <div v-if="extractedEvents.length === 0" class="empty-state">
+      <h3>予定候補はまだありません</h3>
+      <p>おたより画像を追加して、「予定候補を見つける」を押してください。</p>
+      <button class="primary-button" type="button" @click="switchView('letters')">おたよりを追加する</button>
+    </div>
     <div v-if="extractedEvents.length > 0" class="candidate-filters surface">
       <div class="filter-group">
         <p>状態で絞り込む</p>

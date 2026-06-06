@@ -7,6 +7,7 @@ const {
   calendarStatusLabel,
   canRetryCalendarEvent,
   createManualEvent,
+  extractedEvents,
   eventMessage,
   formatCalendarEventTime,
   manualEvent,
@@ -14,7 +15,12 @@ const {
   retryingCalendarEventId,
   savingEvent,
   showManualEventForm,
+  switchView,
 } = useOtayoriCalendarContext()
+
+function goToNextCalendarAction() {
+  switchView(extractedEvents.value.length > 0 ? 'candidates' : 'letters')
+}
 </script>
 
 <template>
@@ -23,7 +29,13 @@ const {
       <div><p class="section-kicker">Calendar</p><h2>カレンダー登録状況</h2></div>
       <p>登録後の予定と、対応が必要な予定を確認できます。</p>
     </div>
-    <div v-if="calendarEvents.length === 0" class="empty-state">Googleカレンダーへ登録した予定はまだありません。</div>
+    <div v-if="calendarEvents.length === 0" class="empty-state">
+      <h3>登録済みの予定はまだありません</h3>
+      <p>予定候補の内容を確認して登録するか、予定を手入力できます。</p>
+      <button class="primary-button" type="button" @click="goToNextCalendarAction">
+        {{ extractedEvents.length > 0 ? '予定候補を確認する' : 'おたよりを追加する' }}
+      </button>
+    </div>
     <div class="calendar-grid">
       <article
         v-for="event in calendarEvents"
