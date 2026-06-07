@@ -20,8 +20,10 @@ const {
   focusedCandidateId,
   hasUnregisterableSelectedEvents,
   ignoreExtractedEvent,
+  isCandidateDirty,
   registerExtractedEvent,
   registeringCandidateId,
+  resetCandidateDraft,
   restoreIgnoredExtractedEvent,
   saveExtractedEvent,
   savingCandidateId,
@@ -39,6 +41,7 @@ const statusFilter = ref<StatusFilter>('all')
 const dateFilter = ref<DateFilter>('all')
 const expandedCandidateIds = ref<string[]>([])
 const previewEvents = ref<ExtractedEvent[]>([])
+const submittedCandidateIds = ref<string[]>([])
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'すべて' },
@@ -108,9 +111,47 @@ function isCandidateExpanded(id: string) {
 }
 
 function toggleCandidate(id: string) {
+  const event = extractedEvents.value.find((candidate) => candidate.id === id)
+  if (event && isCandidateExpanded(id) && isCandidateDirty(event)) {
+    if (!window.confirm('保存していない変更があります。破棄して閉じますか？')) return
+    resetCandidateDraft(event)
+  }
   expandedCandidateIds.value = isCandidateExpanded(id)
     ? expandedCandidateIds.value.filter((candidateId) => candidateId !== id)
     : [...expandedCandidateIds.value, id]
+}
+
+function candidateErrors(event: ExtractedEvent) {
+  const draft = eventDrafts.value[event.id]
+  if (!draft) return {}
+  const errors: Record<string, string> = {}
+  if (!draft.title.trim()) errors.title = '予定名を入力してください'
+  if (!draft.event_date) errors.event_date = '日付を選択してください'
+  if (!draft.is_all_day) {
+    if (!draft.start_time) errors.start_time = '開始時刻を選択してください'
+    if (!draft.end_time) errors.end_time = '終了時刻を選択してください'
+    if (draft.start_time && draft.end_time && draft.end_time <= draft.start_time) {
+      errors.end_time = '終了時刻は開始時刻より後にしてください'
+    }
+  }
+  return errors
+}
+
+function showCandidateError(event: ExtractedEvent, field: string) {
+  return (isCandidateDirty(event) || submittedCandidateIds.value.includes(event.id)) ? candidateErrors(event)[field] : ''
+}
+
+async function submitCandidate(event: ExtractedEvent) {
+  submittedCandidateIds.value = [...new Set([...submittedCandidateIds.value, event.id])]
+  if (Object.keys(candidateErrors(event)).length > 0) {
+    await nextTick()
+    const invalidInput = document.querySelector<HTMLInputElement>(`[data-candidate-id="${event.id}"] [aria-invalid="true"]`)
+    invalidInput?.focus()
+    invalidInput?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
+  await saveExtractedEvent(event)
+  submittedCandidateIds.value = submittedCandidateIds.value.filter((id) => id !== event.id)
 }
 
 function openSinglePreview(event: ExtractedEvent) {
@@ -232,13 +273,14 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
         </div>
         <div class="candidate-summary-actions">
           <p v-if="event.confidence < 0.7" class="warning-chip">読み取り要確認</p>
+          <p v-if="isCandidateDirty(event)" class="unsaved-chip">未保存</p>
           <button class="secondary-button candidate-expand-button" type="button" @click="toggleCandidate(event.id)">
             {{ isCandidateExpanded(event.id) ? '閉じる' : '内容を確認・編集' }}
           </button>
         </div>
       </div>
 
-      <form v-if="eventDrafts[event.id] && isCandidateExpanded(event.id)" class="candidate-form" @submit.prevent="saveExtractedEvent(event)">
+      <form v-if="eventDrafts[event.id] && isCandidateExpanded(event.id)" class="candidate-form" novalidate @submit.prevent="submitCandidate(event)">
         <p v-if="event.status === 'registered'" class="candidate-lock-message">
           Googleカレンダー登録済みのため、この画面では編集できません。
         </p>
@@ -246,12 +288,12 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
           除外済みです。編集を再開する場合は、先に除外を取り消してください。
         </p>
         <fieldset class="candidate-fields" :disabled="!canEditExtractedEvent(event)">
-          <label>予定名<input v-model="eventDrafts[event.id].title" required type="text" /></label>
-          <label>日付<input v-model="eventDrafts[event.id].event_date" required type="date" /></label>
+          <label>予定名<input v-model="eventDrafts[event.id].title" :aria-invalid="!!showCandidateError(event, 'title')" required type="text" /><small v-if="showCandidateError(event, 'title')" class="field-error">{{ showCandidateError(event, 'title') }}</small></label>
+          <label>日付<input v-model="eventDrafts[event.id].event_date" :aria-invalid="!!showCandidateError(event, 'event_date')" required type="date" /><small v-if="showCandidateError(event, 'event_date')" class="field-error">{{ showCandidateError(event, 'event_date') }}</small></label>
           <label class="checkbox-label"><input v-model="eventDrafts[event.id].is_all_day" type="checkbox" />終日予定</label>
           <div v-if="!eventDrafts[event.id].is_all_day" class="time-grid">
-            <label>開始<input v-model="eventDrafts[event.id].start_time" required type="time" /></label>
-            <label>終了<input v-model="eventDrafts[event.id].end_time" required type="time" /></label>
+            <label>開始<input v-model="eventDrafts[event.id].start_time" :aria-invalid="!!showCandidateError(event, 'start_time')" required type="time" /><small v-if="showCandidateError(event, 'start_time')" class="field-error">{{ showCandidateError(event, 'start_time') }}</small></label>
+            <label>終了<input v-model="eventDrafts[event.id].end_time" :aria-invalid="!!showCandidateError(event, 'end_time')" required type="time" /><small v-if="showCandidateError(event, 'end_time')" class="field-error">{{ showCandidateError(event, 'end_time') }}</small></label>
           </div>
           <label>場所<input v-model="eventDrafts[event.id].location" type="text" placeholder="保育園" /></label>
           <div class="candidate-important-fields">

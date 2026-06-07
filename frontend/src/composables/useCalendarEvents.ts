@@ -14,6 +14,9 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
   const attentionCalendarCount = computed(
     () => calendarEvents.value.filter((event) => event.status === 'failed' || event.status === 'deleted').length,
   )
+  const hasUnsavedManualEvent = computed(() =>
+    Object.entries(manualEvent.value).some(([key, value]) => key !== 'is_all_day' && value !== ''),
+  )
 
   async function loadCalendarEvents() {
     const response = await fetch(`${apiBaseUrl}/api/calendar-events`, { credentials: 'include' })
@@ -80,6 +83,10 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
     eventMessage.value = ''
   }
 
+  function resetManualEvent() {
+    manualEvent.value = emptyManualEvent()
+  }
+
   return {
     attentionCalendarCount,
     calendarEvents,
@@ -89,9 +96,11 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
     createManualEvent,
     eventMessage,
     formatCalendarEventTime,
+    hasUnsavedManualEvent,
     loadCalendarEvents,
     manualEvent,
     resetCalendarEvents,
+    resetManualEvent,
     retryCalendarEvent,
     retryingCalendarEventId,
     savingEvent,

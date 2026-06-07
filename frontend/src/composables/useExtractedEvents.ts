@@ -26,6 +26,9 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
   const readyCandidateCount = computed(
     () => extractedEvents.value.filter((event) => canRegisterExtractedEvent(event)).length,
   )
+  const hasUnsavedCandidateChanges = computed(() =>
+    extractedEvents.value.some((event) => isCandidateDirty(event)),
+  )
 
   async function loadExtractedEvents() {
     const response = await fetch(`${apiBaseUrl}/api/extracted-events`, { credentials: 'include' })
@@ -312,6 +315,16 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     pruneSelectedCandidateIds()
   }
 
+  function isCandidateDirty(event: ExtractedEvent) {
+    const draft = eventDrafts.value[event.id]
+    if (!draft) return false
+    return JSON.stringify(draft) !== JSON.stringify(toEventDraft(event))
+  }
+
+  function resetCandidateDraft(event: ExtractedEvent) {
+    eventDrafts.value = { ...eventDrafts.value, [event.id]: toEventDraft(event) }
+  }
+
   function syncEventDrafts(events: ExtractedEvent[]) {
     const drafts = { ...eventDrafts.value }
     events.forEach((event) => {
@@ -343,8 +356,10 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     eventDrafts,
     extractedEvents,
     extractedStatusLabel,
+    hasUnsavedCandidateChanges,
     hasUnregisterableSelectedEvents,
     ignoreExtractedEvent,
+    isCandidateDirty,
     loadExtractedEvents,
     mergeExtractedEvents,
     pendingCandidateCount,
@@ -352,6 +367,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
     registerExtractedEvent,
     registeringCandidateId,
     resetExtractedEvents,
+    resetCandidateDraft,
     restoreIgnoredExtractedEvent,
     saveExtractedEvent,
     savingCandidateId,
