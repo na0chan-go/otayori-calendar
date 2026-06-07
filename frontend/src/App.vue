@@ -29,7 +29,7 @@ const {
 
 <template>
   <main class="page-shell">
-    <div v-if="loading" class="loading-screen">
+    <div v-if="loading" class="loading-screen" role="status" aria-live="polite">
       <span class="loading-dot"></span>
       <p>カレンダーを準備しています</p>
     </div>
@@ -60,18 +60,18 @@ const {
       <div id="top" class="content-shell">
         <OperationStatus />
         <HomeView v-if="activeView === 'home'" />
-        <p v-if="errorMessage" class="notice error-notice">{{ errorMessage }}</p>
-        <p v-if="letterMessage" class="notice success-notice">{{ letterMessage }}</p>
+        <p v-if="errorMessage" class="notice error-notice" role="alert" aria-live="assertive">{{ errorMessage }}</p>
+        <p v-if="letterMessage" class="notice success-notice" role="status" aria-live="polite">{{ letterMessage }}</p>
         <LettersView v-if="activeView === 'letters'" />
         <CandidatesView v-if="activeView === 'candidates'" />
         <CalendarView v-if="activeView === 'calendar'" />
       </div>
 
       <nav class="bottom-nav" aria-label="画面切り替え">
-        <button :class="{ active: activeView === 'home' }" type="button" @click="switchView('home')"><span>⌂</span><small>ホーム</small></button>
-        <button :class="{ active: activeView === 'letters' }" type="button" @click="switchView('letters')"><span>▧</span><small>おたより</small></button>
-        <button :class="{ active: activeView === 'candidates' }" type="button" @click="switchView('candidates')"><span>✓</span><small>予定候補</small><b v-if="pendingCandidateCount">{{ pendingCandidateCount }}</b></button>
-        <button :class="{ active: activeView === 'calendar' }" type="button" @click="switchView('calendar')"><span>□</span><small>カレンダー</small><b v-if="attentionCalendarCount">{{ attentionCalendarCount }}</b></button>
+        <button :aria-current="activeView === 'home' ? 'page' : undefined" :class="{ active: activeView === 'home' }" type="button" @click="switchView('home')"><span aria-hidden="true">⌂</span><small>ホーム</small></button>
+        <button :aria-current="activeView === 'letters' ? 'page' : undefined" :class="{ active: activeView === 'letters' }" type="button" @click="switchView('letters')"><span aria-hidden="true">▧</span><small>おたより</small></button>
+        <button :aria-current="activeView === 'candidates' ? 'page' : undefined" :class="{ active: activeView === 'candidates' }" type="button" @click="switchView('candidates')"><span aria-hidden="true">✓</span><small>予定候補</small><b v-if="pendingCandidateCount" :aria-label="`${pendingCandidateCount}件の確認待ち`">{{ pendingCandidateCount }}</b></button>
+        <button :aria-current="activeView === 'calendar' ? 'page' : undefined" :class="{ active: activeView === 'calendar' }" type="button" @click="switchView('calendar')"><span aria-hidden="true">□</span><small>カレンダー</small><b v-if="attentionCalendarCount" :aria-label="`${attentionCalendarCount}件の要対応`">{{ attentionCalendarCount }}</b></button>
       </nav>
       <OnboardingGuide v-if="showOnboardingGuide" />
     </div>

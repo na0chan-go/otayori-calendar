@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useOtayoriCalendarContext } from '../composables/otayoriCalendarContext'
+import { useDialogFocus } from '../composables/useDialogFocus'
 import type { CalendarEvent, ExtractedEvent } from '../types'
 
 const props = defineProps<{ events: ExtractedEvent[]; registering: boolean }>()
 const emit = defineEmits<{ close: []; confirm: []; ignore: [event: ExtractedEvent] }>()
 const { calendarEvents } = useOtayoriCalendarContext()
+const dialog = ref<HTMLElement | null>(null)
+useDialogFocus(dialog, () => emit('close'))
 
 const duplicateMatches = computed(() => {
   const matches = new Map<string, string[]>()
@@ -59,7 +62,7 @@ function sourceLabel(event: CalendarEvent) {
 
 <template>
   <div class="preview-backdrop" role="presentation" @click.self="emit('close')">
-    <section class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+    <section ref="dialog" class="preview-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title" tabindex="-1">
       <button class="guide-close" type="button" aria-label="登録プレビューを閉じる" @click="emit('close')">×</button>
       <p class="section-kicker">Final check</p>
       <h2 id="preview-title">Googleカレンダーへ登録しますか？</h2>

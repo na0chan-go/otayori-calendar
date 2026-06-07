@@ -23,6 +23,6 @@ const { childDrafts, childMessage, children, createChild, newChild, saveChild, s
         <button class="secondary-button" :disabled="savingChildId !== ''" type="submit">{{ savingChildId === child.id ? '保存中...' : '保存' }}</button>
       </form>
     </div>
-    <p v-if="childMessage" class="notice success-notice">{{ childMessage }}</p>
+    <p v-if="childMessage" class="notice success-notice" role="status" aria-live="polite">{{ childMessage }}</p>
   </section>
 </template>

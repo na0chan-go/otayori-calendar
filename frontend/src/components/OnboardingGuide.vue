@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useOtayoriCalendarContext } from '../composables/otayoriCalendarContext'
+import { useDialogFocus } from '../composables/useDialogFocus'
 
 const { closeOnboardingGuide, switchView } = useOtayoriCalendarContext()
+const dialog = ref<HTMLElement | null>(null)
+useDialogFocus(dialog, closeOnboardingGuide)
 
 function startWithLetter() {
   closeOnboardingGuide()
@@ -11,7 +15,7 @@ function startWithLetter() {
 
 <template>
   <div class="guide-backdrop" role="presentation" @click.self="closeOnboardingGuide">
-    <section class="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+    <section ref="dialog" class="guide-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-title" tabindex="-1">
       <button class="guide-close" type="button" aria-label="使い方ガイドを閉じる" @click="closeOnboardingGuide">×</button>
       <p class="section-kicker">はじめての方へ</p>
       <h2 id="guide-title">おたよりを、3ステップで予定に。</h2>

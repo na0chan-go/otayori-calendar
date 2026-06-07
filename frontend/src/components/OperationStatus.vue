@@ -47,7 +47,7 @@ function bulkTitle(action: string) {
 </script>
 
 <template>
-  <aside v-if="!isOnline || operation || errorMessage" class="operation-status" :class="{ offline: !isOnline, failed: errorMessage && isOnline && !operation }">
+  <aside v-if="!isOnline || operation || errorMessage" class="operation-status" :class="{ offline: !isOnline, failed: errorMessage && isOnline && !operation }" role="status" aria-live="polite">
     <span class="operation-indicator" :class="{ active: operation }"></span>
     <div>
       <strong>{{ !isOnline ? 'インターネット接続がありません' : operation?.title || '処理を完了できませんでした' }}</strong>

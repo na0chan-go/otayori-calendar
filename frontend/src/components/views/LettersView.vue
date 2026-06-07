@@ -71,8 +71,8 @@ function showLetterCandidates(letter: Letter) {
       <button class="primary-button" type="button" @click="scrollToUpload">画像を選択する</button>
     </div>
     <div v-if="letters.length > 0 && children.length > 0" class="filter-options">
-      <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
-      <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+      <button :aria-pressed="childFilter === ''" :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
+      <button v-for="child in children" :key="child.id" :aria-pressed="childFilter === child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
     </div>
     <div class="letter-grid">
       <article v-for="letter in displayedLetters" :key="letter.id" class="surface letter-card">

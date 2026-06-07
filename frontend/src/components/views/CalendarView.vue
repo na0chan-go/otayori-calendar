@@ -135,14 +135,14 @@ function formatDate(date: string) {
     </div>
     <div v-if="calendarEvents.length > 0" class="candidate-filters surface calendar-filters">
       <div class="filter-options">
-        <button :class="{ active: calendarFilter === 'upcoming' }" type="button" @click="calendarFilter = 'upcoming'">今後・要対応</button>
-        <button :class="{ active: calendarFilter === 'past' }" type="button" @click="calendarFilter = 'past'">過去</button>
-        <button :class="{ active: calendarFilter === 'all' }" type="button" @click="calendarFilter = 'all'">すべて</button>
+        <button :aria-pressed="calendarFilter === 'upcoming'" :class="{ active: calendarFilter === 'upcoming' }" type="button" @click="calendarFilter = 'upcoming'">今後・要対応</button>
+        <button :aria-pressed="calendarFilter === 'past'" :class="{ active: calendarFilter === 'past' }" type="button" @click="calendarFilter = 'past'">過去</button>
+        <button :aria-pressed="calendarFilter === 'all'" :class="{ active: calendarFilter === 'all' }" type="button" @click="calendarFilter = 'all'">すべて</button>
       </div>
       <p class="filter-result"><strong>{{ filteredCalendarEvents.length }}件</strong> を表示中 / 全{{ calendarEvents.length }}件</p>
       <div v-if="children.length > 0" class="filter-options">
-        <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべての子ども</button>
-        <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+        <button :aria-pressed="childFilter === ''" :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべての子ども</button>
+        <button v-for="child in children" :key="child.id" :aria-pressed="childFilter === child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
       </div>
     </div>
     <div class="calendar-date-groups">
@@ -180,15 +180,15 @@ function formatDate(date: string) {
         </div>
       </section>
     </div>
-    <p v-if="calendarMessage" class="notice success-notice">{{ calendarMessage }}</p>
+    <p v-if="calendarMessage" class="notice success-notice" role="status" aria-live="polite">{{ calendarMessage }}</p>
   </section>
 
   <section id="manual" class="workspace-section manual-section">
-    <button class="manual-toggle" type="button" @click="toggleManualEventForm">
+    <button class="manual-toggle" type="button" aria-controls="manual-event-form" :aria-expanded="showManualEventForm" @click="toggleManualEventForm">
       <span><strong>予定を手入力</strong><small>おたよりにない予定を追加</small></span>
       <span>{{ showManualEventForm ? '閉じる' : '＋ 追加する' }}</span>
     </button>
-    <form v-if="showManualEventForm" class="surface form-grid" novalidate @submit.prevent="submitManualEvent">
+    <form v-if="showManualEventForm" id="manual-event-form" class="surface form-grid" novalidate @submit.prevent="submitManualEvent">
       <label v-if="children.length > 0">対象の子ども<select v-model="manualEvent.child_id"><option value="">未設定</option><option v-for="child in children" :key="child.id" :value="child.id">{{ child.name }}</option></select></label>
       <label>予定名<input v-model="manualEvent.title" :aria-invalid="!!showManualError('title')" required type="text" placeholder="例：身体測定" /><small v-if="showManualError('title')" class="field-error">{{ showManualError('title') }}</small></label>
       <label>日付<input v-model="manualEvent.event_date" :aria-invalid="!!showManualError('event_date')" required type="date" /><small v-if="showManualError('event_date')" class="field-error">{{ showManualError('event_date') }}</small></label>
@@ -200,7 +200,7 @@ function formatDate(date: string) {
       <label>場所<input v-model="manualEvent.location" type="text" placeholder="例：保育園" /></label>
       <label>メモ<textarea v-model="manualEvent.description" rows="3" placeholder="持ち物や注意事項"></textarea></label>
       <button class="primary-button" :disabled="savingEvent" type="submit">{{ savingEvent ? '登録中...' : 'Googleカレンダーへ登録' }}</button>
-      <p v-if="eventMessage" class="notice success-notice">{{ eventMessage }}</p>
+      <p v-if="eventMessage" class="notice success-notice" role="status" aria-live="polite">{{ eventMessage }}</p>
     </form>
   </section>
 </template>

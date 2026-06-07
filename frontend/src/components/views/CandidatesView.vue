@@ -214,6 +214,7 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
           <button
             v-for="filter in statusFilters"
             :key="filter.value"
+            :aria-pressed="statusFilter === filter.value"
             :class="{ active: statusFilter === filter.value }"
             type="button"
             @click="statusFilter = filter.value"
@@ -225,16 +226,16 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
       <div v-if="children.length > 0" class="filter-group">
         <p>子どもで絞り込む</p>
         <div class="filter-options">
-          <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
-          <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+          <button :aria-pressed="childFilter === ''" :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
+          <button v-for="child in children" :key="child.id" :aria-pressed="childFilter === child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
         </div>
       </div>
       <div class="filter-group">
         <p>日付で絞り込む</p>
         <div class="filter-options">
-          <button :class="{ active: dateFilter === 'all' }" type="button" @click="dateFilter = 'all'">すべて</button>
-          <button :class="{ active: dateFilter === 'upcoming' }" type="button" @click="dateFilter = 'upcoming'">今後の予定</button>
-          <button :class="{ active: dateFilter === 'past' }" type="button" @click="dateFilter = 'past'">過去の予定</button>
+          <button :aria-pressed="dateFilter === 'all'" :class="{ active: dateFilter === 'all' }" type="button" @click="dateFilter = 'all'">すべて</button>
+          <button :aria-pressed="dateFilter === 'upcoming'" :class="{ active: dateFilter === 'upcoming' }" type="button" @click="dateFilter = 'upcoming'">今後の予定</button>
+          <button :aria-pressed="dateFilter === 'past'" :class="{ active: dateFilter === 'past' }" type="button" @click="dateFilter = 'past'">過去の予定</button>
         </div>
       </div>
       <p class="filter-result"><strong>{{ filteredExtractedEvents.length }}件</strong> を表示中 / 全{{ extractedEvents.length }}件</p>
@@ -291,13 +292,13 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
         <div class="candidate-summary-actions">
           <p v-if="event.confidence < 0.7" class="warning-chip">読み取り要確認</p>
           <p v-if="isCandidateDirty(event)" class="unsaved-chip">未保存</p>
-          <button class="secondary-button candidate-expand-button" type="button" @click="toggleCandidate(event.id)">
+          <button class="secondary-button candidate-expand-button" :aria-controls="`candidate-details-${event.id}`" :aria-expanded="isCandidateExpanded(event.id)" type="button" @click="toggleCandidate(event.id)">
             {{ isCandidateExpanded(event.id) ? '閉じる' : '内容を確認・編集' }}
           </button>
         </div>
       </div>
 
-      <form v-if="eventDrafts[event.id] && isCandidateExpanded(event.id)" class="candidate-form" novalidate @submit.prevent="submitCandidate(event)">
+      <form v-if="eventDrafts[event.id] && isCandidateExpanded(event.id)" :id="`candidate-details-${event.id}`" class="candidate-form" novalidate @submit.prevent="submitCandidate(event)">
         <p v-if="event.status === 'registered'" class="candidate-lock-message">
           Googleカレンダー登録済みのため、この画面では編集できません。
         </p>
@@ -348,8 +349,8 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
     <div v-if="extractedEvents.length > 0 && filteredExtractedEvents.length === 0" class="empty-state">
       条件に一致する予定候補はありません。
     </div>
-    <p v-if="candidateMessage" class="notice success-notice">{{ candidateMessage }}</p>
-    <div v-if="undoCandidateAction" class="notice undo-notice">
+    <p v-if="candidateMessage" class="notice success-notice" role="status" aria-live="polite">{{ candidateMessage }}</p>
+    <div v-if="undoCandidateAction" class="notice undo-notice" role="status" aria-live="polite">
       <p>{{ undoCandidateAction.message }}</p>
       <button :disabled="bulkCandidateAction !== ''" type="button" @click="undoLastCandidateAction">取り消す</button>
     </div>
