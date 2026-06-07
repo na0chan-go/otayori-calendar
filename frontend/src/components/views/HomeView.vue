@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
+import type { CalendarEvent, ExtractedEvent } from '../../types'
 import { buildLetterProgress } from '../../utils/letterProgress'
 
 const {
   attentionCalendarCount,
+  calendarEvents,
   extractedEvents,
   letters,
+  openCalendarEvent,
+  openCandidate,
   pendingCandidateCount,
   readyCandidateCount,
   switchView,
@@ -28,6 +32,92 @@ const upcomingImportantEvents = computed(() => {
     .sort((a, b) => importantEventDate(a, localToday).localeCompare(importantEventDate(b, localToday)))
     .slice(0, 3)
 })
+
+type TimelineItem = {
+  key: string
+  date: string
+  title: string
+  detail: string
+  type: 'event' | 'belongings' | 'deadline'
+  event?: ExtractedEvent
+  calendarEvent?: CalendarEvent
+}
+
+const weeklyTimeline = computed(() => {
+  const today = localDate(new Date())
+  const weekEnd = addDays(today, 6)
+  const items: TimelineItem[] = []
+  const registeredCandidateIds = new Set(
+    calendarEvents.value.filter((event) => event.source_type === 'extracted').map((event) => event.id),
+  )
+
+  extractedEvents.value
+    .filter((event) => event.status !== 'ignored')
+    .forEach((event) => {
+      const eventDate = event.event_date.slice(0, 10)
+      if (!registeredCandidateIds.has(event.id) && eventDate >= today && eventDate <= weekEnd) {
+        items.push({ key: `event-${event.id}`, date: eventDate, title: event.title, detail: event.location || '予定', type: 'event', event })
+      }
+      if (event.belongings && eventDate >= today && eventDate <= weekEnd) {
+        items.push({ key: `belongings-${event.id}`, date: eventDate, title: event.title, detail: event.belongings, type: 'belongings', event })
+      }
+      const deadline = event.submission_deadline?.slice(0, 10)
+      if (deadline && deadline >= addDays(today, -7) && deadline <= weekEnd) {
+        items.push({ key: `deadline-${event.id}`, date: deadline, title: event.title, detail: 'この日までに提出', type: 'deadline', event })
+      }
+    })
+
+  calendarEvents.value
+    .filter((event) => event.status === 'registered')
+    .forEach((event) => {
+      const date = event.event_date.slice(0, 10)
+      if (date >= today && date <= weekEnd) {
+        items.push({ key: `calendar-${event.source_type}-${event.id}`, date, title: event.title, detail: event.location || 'Googleカレンダー登録済み', type: 'event', calendarEvent: event })
+      }
+    })
+
+  return items.sort((a, b) => a.date.localeCompare(b.date) || timelineTypeOrder(a.type) - timelineTypeOrder(b.type))
+})
+
+const timelineGroups = computed(() => {
+  const groups = new Map<string, TimelineItem[]>()
+  weeklyTimeline.value.forEach((item) => groups.set(item.date, [...(groups.get(item.date) ?? []), item]))
+  return Array.from(groups, ([date, items]) => ({ date, items }))
+})
+
+function openTimelineItem(item: TimelineItem) {
+  if (item.calendarEvent) {
+    openCalendarEvent(item.calendarEvent.source_type, item.calendarEvent.id)
+    return
+  }
+  if (item.event) openCandidate(item.event.id)
+}
+
+function localDate(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00`)
+  value.setDate(value.getDate() + days)
+  return localDate(value)
+}
+
+function dateHeading(date: string) {
+  const today = localDate(new Date())
+  if (date < today) return `期限超過 · ${formatShortDate(date)}`
+  if (date === today) return `今日 · ${formatShortDate(date)}`
+  if (date === addDays(today, 1)) return `明日 · ${formatShortDate(date)}`
+  return formatShortDate(date)
+}
+
+function formatShortDate(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric', weekday: 'short' })
+}
+
+function timelineTypeOrder(type: TimelineItem['type']) {
+  return { deadline: 0, belongings: 1, event: 2 }[type]
+}
 
 function importantEventDate(event: (typeof extractedEvents.value)[number], localToday = '') {
   const deadline = event.submission_deadline?.slice(0, 10) ?? ''
@@ -61,6 +151,27 @@ function importantEventDate(event: (typeof extractedEvents.value)[number], local
     <button class="summary-card white" type="button" @click="switchView('letters')">
       <span>おたより</span><strong>{{ letters.length }}</strong><small>アップロード済み</small>
     </button>
+  </section>
+
+  <section class="weekly-timeline">
+    <div class="section-heading">
+      <div><p class="section-kicker">This week</p><h2>今日から1週間</h2></div>
+      <p>予定・持ち物・提出期限を日付順で確認できます。</p>
+    </div>
+    <div v-if="timelineGroups.length === 0" class="empty-state compact-empty-state">
+      <h3>今週の予定はありません</h3>
+      <p>新しいおたよりを追加すると、ここに直近の予定が表示されます。</p>
+    </div>
+    <div v-else class="timeline-groups">
+      <section v-for="group in timelineGroups" :key="group.date" class="timeline-group" :class="{ overdue: group.date < localDate(new Date()) }">
+        <h3>{{ dateHeading(group.date) }}</h3>
+        <button v-for="item in group.items" :key="item.key" class="timeline-item" type="button" @click="openTimelineItem(item)">
+          <span class="timeline-type" :class="item.type">{{ { event: '予定', belongings: '持ち物', deadline: '提出期限' }[item.type] }}</span>
+          <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
+          <span class="next-action-arrow">→</span>
+        </button>
+      </section>
+    </div>
   </section>
 
   <section v-if="upcomingImportantEvents.length > 0" class="important-events">
