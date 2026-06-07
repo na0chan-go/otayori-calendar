@@ -14,6 +14,7 @@ import (
 	extractedeventusecase "github.com/na0chan-go/otayori-calendar/backend/internal/usecase/extractedevent"
 	"golang.org/x/oauth2"
 	calendar "google.golang.org/api/calendar/v3"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -63,7 +64,7 @@ type bulkExtractedEventsSummary struct {
 
 var (
 	errExtractedEventAlreadyRegistered = extractedeventdomain.ErrAlreadyRegistered
-	errExtractedEventNotEditable       = errors.New("registered events cannot be edited")
+	errExtractedEventNotEditable       = extractedeventdomain.ErrNotEditable
 	errExtractedEventNotRegisterable   = extractedeventdomain.ErrNotRegisterable
 	errGoogleCalendarEventIDMissing    = extractedeventdomain.ErrCalendarEventIDMissing
 	errGoogleCalendarEventCreateFailed = extractedeventusecase.ErrCalendarEventCreateFailed
@@ -110,16 +111,18 @@ func (s *Server) updateExtractedEvent(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := validateExtractedEventEditable(event); err != nil {
-		return echo.NewHTTPError(http.StatusConflict, err.Error())
-	}
 
-	if err := applyExtractedEventUpdate(&event, req); err != nil {
+	update := extractedeventusecase.Update{
+		Repository: extractedEventCandidateRepository{server: s, event: &event},
+	}
+	if err := update.Execute(c.Request().Context(), extractedEventCandidate(event), extractedEventUpdate(req)); err != nil {
+		if errors.Is(err, extractedeventdomain.ErrNotEditable) {
+			return echo.NewHTTPError(http.StatusConflict, err.Error())
+		}
+		if errors.Is(err, extractedeventusecase.ErrSaveCandidateFailed) {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
-
-	if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update extracted event")
 	}
 
 	return c.JSON(http.StatusOK, map[string]any{"event": event})
@@ -438,6 +441,18 @@ type extractedEventStateRepository struct {
 	event  *model.ExtractedEvent
 }
 
+type extractedEventCandidateRepository struct {
+	server *Server
+	event  *model.ExtractedEvent
+}
+
+func (r extractedEventCandidateRepository) SaveCandidate(ctx context.Context, candidate extractedeventdomain.Candidate) error {
+	if err := applyExtractedEventCandidate(r.event, candidate); err != nil {
+		return err
+	}
+	return r.server.db.WithContext(ctx).Save(r.event).Error
+}
+
 func (r extractedEventStateRepository) SaveState(ctx context.Context, state extractedeventdomain.State) error {
 	applyExtractedEventState(r.event, state)
 	return r.server.db.WithContext(ctx).Save(r.event).Error
@@ -459,6 +474,82 @@ func extractedEventState(event model.ExtractedEvent) extractedeventdomain.State 
 func applyExtractedEventState(event *model.ExtractedEvent, state extractedeventdomain.State) {
 	event.Status = state.Status
 	event.GoogleCalendarEventID = state.CalendarEventID
+}
+
+func extractedEventCandidate(event model.ExtractedEvent) extractedeventdomain.Candidate {
+	return extractedeventdomain.Candidate{
+		Title:              event.Title,
+		EventDate:          event.EventDate.Format("2006-01-02"),
+		StartTime:          extractedEventClock(event.StartTime),
+		EndTime:            extractedEventClock(event.EndTime),
+		IsAllDay:           event.IsAllDay,
+		Location:           event.Location,
+		Description:        event.Description,
+		Belongings:         event.Belongings,
+		SubmissionDeadline: extractedEventDate(event.SubmissionDeadline),
+		Status:             event.Status,
+	}
+}
+
+func extractedEventUpdate(req updateExtractedEventRequest) extractedeventdomain.Update {
+	return extractedeventdomain.Update{
+		Title:              req.Title,
+		EventDate:          req.EventDate,
+		StartTime:          req.StartTime,
+		EndTime:            req.EndTime,
+		IsAllDay:           req.IsAllDay,
+		Location:           req.Location,
+		Description:        req.Description,
+		Belongings:         req.Belongings,
+		SubmissionDeadline: req.SubmissionDeadline,
+	}
+}
+
+func applyExtractedEventCandidate(event *model.ExtractedEvent, candidate extractedeventdomain.Candidate) error {
+	eventDate, err := time.Parse("2006-01-02", candidate.EventDate)
+	if err != nil {
+		return err
+	}
+	startTime, err := normalizeOptionalClock(candidate.StartTime, "start_time")
+	if err != nil {
+		return err
+	}
+	endTime, err := normalizeOptionalClock(candidate.EndTime, "end_time")
+	if err != nil {
+		return err
+	}
+	submissionDeadline, err := normalizeOptionalDate(candidate.SubmissionDeadline, "submission_deadline")
+	if err != nil {
+		return err
+	}
+
+	event.Title = candidate.Title
+	event.EventDate = eventDate
+	event.StartTime = startTime
+	event.EndTime = endTime
+	event.IsAllDay = candidate.IsAllDay
+	event.Location = candidate.Location
+	event.Description = candidate.Description
+	event.Belongings = candidate.Belongings
+	event.SubmissionDeadline = submissionDeadline
+	event.Status = candidate.Status
+	return nil
+}
+
+func extractedEventClock(value *datatypes.Time) *string {
+	if value == nil {
+		return nil
+	}
+	clock := value.String()[:5]
+	return &clock
+}
+
+func extractedEventDate(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	date := value.Format("2006-01-02")
+	return &date
 }
 
 func bulkStateChangeMessage(err error, saveMessage string) string {
@@ -582,10 +673,7 @@ func extractedEventCalendarDescription(event model.ExtractedEvent) string {
 }
 
 func validateExtractedEventEditable(event model.ExtractedEvent) error {
-	if event.Status == model.ExtractedEventStatusRegistered {
-		return errExtractedEventNotEditable
-	}
-	return nil
+	return extractedEventCandidate(event).ValidateEditable()
 }
 
 func validateExtractedEventStatusRestore(currentStatus, expectedStatus, targetStatus string) error {
@@ -594,71 +682,9 @@ func validateExtractedEventStatusRestore(currentStatus, expectedStatus, targetSt
 }
 
 func applyExtractedEventUpdate(event *model.ExtractedEvent, req updateExtractedEventRequest) error {
-	if req.Title != nil {
-		title := strings.TrimSpace(*req.Title)
-		if title == "" {
-			return errors.New("title is required")
-		}
-		event.Title = title
+	updated, err := extractedEventCandidate(*event).Updated(extractedEventUpdate(req))
+	if err != nil {
+		return err
 	}
-
-	if req.EventDate != nil {
-		eventDate, err := time.Parse("2006-01-02", strings.TrimSpace(*req.EventDate))
-		if err != nil {
-			return errors.New("event_date must be YYYY-MM-DD")
-		}
-		event.EventDate = eventDate
-	}
-
-	if req.StartTime != nil {
-		startTime, err := normalizeOptionalClock(req.StartTime, "start_time")
-		if err != nil {
-			return err
-		}
-		event.StartTime = startTime
-	}
-	if req.EndTime != nil {
-		endTime, err := normalizeOptionalClock(req.EndTime, "end_time")
-		if err != nil {
-			return err
-		}
-		event.EndTime = endTime
-	}
-	if req.IsAllDay != nil {
-		event.IsAllDay = *req.IsAllDay
-	}
-
-	if event.IsAllDay {
-		event.StartTime = nil
-		event.EndTime = nil
-	} else {
-		if event.StartTime == nil || event.EndTime == nil {
-			return errors.New("start_time and end_time are required when is_all_day is false")
-		}
-		if *event.EndTime <= *event.StartTime {
-			return errors.New("end_time must be after start_time")
-		}
-	}
-
-	if req.Location != nil {
-		event.Location = strings.TrimSpace(*req.Location)
-	}
-	if req.Description != nil {
-		event.Description = strings.TrimSpace(*req.Description)
-	}
-	if req.Belongings != nil {
-		event.Belongings = strings.TrimSpace(*req.Belongings)
-	}
-	if req.SubmissionDeadline != nil {
-		submissionDeadline, err := normalizeOptionalDate(req.SubmissionDeadline, "submission_deadline")
-		if err != nil {
-			return err
-		}
-		event.SubmissionDeadline = submissionDeadline
-	}
-
-	if event.Status != model.ExtractedEventStatusRegistered && event.Status != model.ExtractedEventStatusDeleted {
-		event.Status = model.ExtractedEventStatusConfirmed
-	}
-	return nil
+	return applyExtractedEventCandidate(event, updated)
 }

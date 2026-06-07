@@ -17,3 +17,7 @@ type RegistrationRepository interface {
 type StateRepository interface {
 	SaveState(ctx context.Context, state extractedeventdomain.State) error
 }
+
+type CandidateRepository interface {
+	SaveCandidate(ctx context.Context, candidate extractedeventdomain.Candidate) error
+}
