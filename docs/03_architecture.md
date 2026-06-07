@@ -145,7 +145,8 @@ backend/internal/
 - 予定候補の確認・除外・復元の状態遷移と保存フローはdomain/usecaseへ分離済み。
 - 予定候補の編集可否・入力検証・更新後状態と保存フローはdomain/usecaseへ分離済み。
 - AI抽出の入力選択・候補生成・トランザクション保存フローはusecase/portへ分離済み。
-- AI出力のJSON解析・候補検証ルールは移行用adapterとしてhandlerに残っており、次段階でdomainへ移す。
+- AI抽出候補の構造・入力検証・簡易OCR抽出ルールは `internal/domain/extractedevent` へ分離済み。
+- 外部AI出力のJSON解析とGORMモデル変換は移行用adapterとしてhandlerに残っている。
 - GORMとGoogle Calendar APIのadapterは移行中のためhandler内に残っており、次段階でinfrastructureへ移す。
 
 ## Error Handling

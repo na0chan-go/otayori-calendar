@@ -7,13 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	extractedeventdomain "github.com/na0chan-go/otayori-calendar/backend/internal/domain/extractedevent"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/service"
 	extractedeventusecase "github.com/na0chan-go/otayori-calendar/backend/internal/usecase/extractedevent"
@@ -27,25 +26,9 @@ type extractionRequest struct {
 	ReferenceYear int    `json:"reference_year"`
 }
 
-type extractionOutput struct {
-	Events []extractionEvent `json:"events"`
-}
+type extractionOutput = extractedeventdomain.ExtractionOutput
+type extractionEvent = extractedeventdomain.ExtractionCandidate
 
-type extractionEvent struct {
-	Title       string  `json:"title"`
-	Date        string  `json:"date"`
-	StartTime   *string `json:"start_time"`
-	EndTime     *string `json:"end_time"`
-	IsAllDay    bool    `json:"is_all_day"`
-	Location    string  `json:"location"`
-	Description string  `json:"description"`
-	Belongings  string  `json:"belongings"`
-	Deadline    *string `json:"submission_deadline"`
-	Confidence  float64 `json:"confidence"`
-	SourceText  string  `json:"source_text"`
-}
-
-var japaneseDatePattern = regexp.MustCompile(`(?m)(\d{1,2})月(\d{1,2})日[^\n]*(?:\n[^\n]*)?`)
 var errExternalAIInvalidOutput = errors.New("external AI returned invalid output")
 
 func (s *Server) extractLetterEvents(c echo.Context) error {
@@ -193,81 +176,21 @@ func buildExtractionOutput(req extractionRequest, ocrText string) (extractionOut
 		year = time.Now().Year()
 	}
 
-	return extractEventsFromOCRText(ocrText, year), nil
+	return extractedeventdomain.ExtractFromOCRText(ocrText, year), nil
 }
 
 func extractEventsFromOCRText(ocrText string, year int) extractionOutput {
-	matches := japaneseDatePattern.FindAllStringSubmatch(ocrText, -1)
-	events := make([]extractionEvent, 0, len(matches))
-
-	for _, match := range matches {
-		if len(match) < 3 {
-			continue
-		}
-
-		month, err := strconv.Atoi(match[1])
-		if err != nil {
-			continue
-		}
-		day, err := strconv.Atoi(match[2])
-		if err != nil {
-			continue
-		}
-
-		eventDate := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-		if eventDate.Month() != time.Month(month) || eventDate.Day() != day {
-			continue
-		}
-
-		sourceText := strings.TrimSpace(match[0])
-		title := guessTitleFromSource(sourceText)
-		if title == "" {
-			title = fmt.Sprintf("%d月%d日の予定", month, day)
-		}
-
-		events = append(events, extractionEvent{
-			Title:       title,
-			Date:        eventDate.Format("2006-01-02"),
-			StartTime:   nil,
-			EndTime:     nil,
-			IsAllDay:    true,
-			Location:    "",
-			Description: sourceText,
-			Confidence:  0.55,
-			SourceText:  sourceText,
-		})
-	}
-
-	return extractionOutput{Events: events}
-}
-
-func guessTitleFromSource(sourceText string) string {
-	cleaned := regexp.MustCompile(`^\d{1,2}月\d{1,2}日(?:（[^）]+）|\([^)]*\))?`).ReplaceAllString(sourceText, "")
-	cleaned = strings.TrimSpace(cleaned)
-	cleaned = strings.Trim(cleaned, "。.")
-	if cleaned == "" {
-		return ""
-	}
-
-	parts := regexp.MustCompile(`[。\n、,]`).Split(cleaned, 2)
-	title := strings.TrimSpace(parts[0])
-	title = strings.TrimSuffix(title, "を行います")
-	title = strings.TrimSuffix(title, "です")
-	title = strings.TrimSuffix(title, "があります")
-	return strings.TrimSpace(title)
+	return extractedeventdomain.ExtractFromOCRText(ocrText, year)
 }
 
 func validateExtractionOutput(letterID uuid.UUID, output extractionOutput) ([]model.ExtractedEvent, error) {
-	if output.Events == nil {
-		return nil, errors.New("events must be an array")
+	candidates, err := extractedeventdomain.ValidateExtractionOutput(output)
+	if err != nil {
+		return nil, err
 	}
-	if len(output.Events) == 0 {
-		return nil, errors.New("events must not be empty")
-	}
-
-	events := make([]model.ExtractedEvent, 0, len(output.Events))
-	for index, event := range output.Events {
-		extractedEvent, err := validateExtractionEvent(letterID, event)
+	events := make([]model.ExtractedEvent, 0, len(candidates))
+	for index, candidate := range candidates {
+		extractedEvent, err := extractionCandidateModel(letterID, candidate)
 		if err != nil {
 			return nil, fmt.Errorf("events[%d]: %w", index, err)
 		}
@@ -278,25 +201,22 @@ func validateExtractionOutput(letterID uuid.UUID, output extractionOutput) ([]mo
 }
 
 func validateExtractionEvent(letterID uuid.UUID, event extractionEvent) (model.ExtractedEvent, error) {
-	title := strings.TrimSpace(event.Title)
-	if title == "" {
-		return model.ExtractedEvent{}, errors.New("title is required")
+	candidate, err := extractedeventdomain.ValidateExtractionCandidate(event)
+	if err != nil {
+		return model.ExtractedEvent{}, err
 	}
+	return extractionCandidateModel(letterID, candidate)
+}
 
+func extractionCandidateModel(letterID uuid.UUID, event extractionEvent) (model.ExtractedEvent, error) {
 	eventDate, err := time.Parse("2006-01-02", event.Date)
 	if err != nil {
-		return model.ExtractedEvent{}, errors.New("date must be YYYY-MM-DD")
+		return model.ExtractedEvent{}, err
 	}
-
-	if event.Confidence < 0 || event.Confidence > 1 {
-		return model.ExtractedEvent{}, errors.New("confidence must be between 0 and 1")
-	}
-
 	submissionDeadline, err := normalizeOptionalDate(event.Deadline, "submission_deadline")
 	if err != nil {
 		return model.ExtractedEvent{}, err
 	}
-
 	startTime, err := normalizeOptionalClock(event.StartTime, "start_time")
 	if err != nil {
 		return model.ExtractedEvent{}, err
@@ -305,27 +225,20 @@ func validateExtractionEvent(letterID uuid.UUID, event extractionEvent) (model.E
 	if err != nil {
 		return model.ExtractedEvent{}, err
 	}
-	if startTime != nil && endTime != nil && *endTime <= *startTime {
-		return model.ExtractedEvent{}, errors.New("end_time must be after start_time")
-	}
-	isAllDay := event.IsAllDay
-	if startTime == nil && endTime == nil {
-		isAllDay = true
-	}
 
 	return model.ExtractedEvent{
 		LetterID:           letterID,
-		Title:              title,
+		Title:              event.Title,
 		EventDate:          eventDate,
 		StartTime:          startTime,
 		EndTime:            endTime,
-		IsAllDay:           isAllDay,
-		Location:           strings.TrimSpace(event.Location),
-		Description:        strings.TrimSpace(event.Description),
-		Belongings:         strings.TrimSpace(event.Belongings),
+		IsAllDay:           event.IsAllDay,
+		Location:           event.Location,
+		Description:        event.Description,
+		Belongings:         event.Belongings,
 		SubmissionDeadline: submissionDeadline,
 		Confidence:         event.Confidence,
-		SourceText:         strings.TrimSpace(event.SourceText),
+		SourceText:         event.SourceText,
 		Status:             model.ExtractedEventStatusDraft,
 	}, nil
 }
