@@ -174,7 +174,7 @@ function importantEventDate(event: (typeof extractedEvents.value)[number], local
         <button v-for="item in group.items" :key="item.key" class="timeline-item" type="button" @click="openTimelineItem(item)">
           <span class="timeline-type" :class="item.type">{{ { event: '予定', belongings: '持ち物', deadline: '提出期限' }[item.type] }}</span>
           <span><strong>{{ item.title }}</strong><small>{{ item.detail }}</small></span>
-          <span class="next-action-arrow">→</span>
+          <span class="next-action-arrow" aria-hidden="true">→</span>
         </button>
       </section>
     </div>
@@ -208,22 +208,22 @@ function importantEventDate(event: (typeof extractedEvents.value)[number], local
     <button v-if="pendingCandidateCount > 0" class="next-action-card" type="button" @click="switchView('candidates')">
       <span class="next-action-number">{{ pendingCandidateCount }}</span>
       <span><strong>未確認の予定候補があります</strong><small>内容を確認してカレンダーへ登録しましょう</small></span>
-      <span class="next-action-arrow">→</span>
+      <span class="next-action-arrow" aria-hidden="true">→</span>
     </button>
     <button v-if="attentionCalendarCount > 0" class="next-action-card attention" type="button" @click="switchView('calendar')">
       <span class="next-action-number">{{ attentionCalendarCount }}</span>
       <span><strong>カレンダー予定に確認が必要です</strong><small>失敗・削除済みの予定を確認しましょう</small></span>
-      <span class="next-action-arrow">→</span>
+      <span class="next-action-arrow" aria-hidden="true">→</span>
     </button>
     <button v-if="unfinishedLetterCount > 0" class="next-action-card" type="button" @click="switchView('letters')">
       <span class="next-action-number">{{ unfinishedLetterCount }}</span>
       <span><strong>対応途中のおたよりがあります</strong><small>おたよりごとの進捗を確認しましょう</small></span>
-      <span class="next-action-arrow">→</span>
+      <span class="next-action-arrow" aria-hidden="true">→</span>
     </button>
     <button class="next-action-card" type="button" @click="switchView('letters')">
       <span class="next-action-number">＋</span>
       <span><strong>新しいおたよりを追加</strong><small>園から届いた画像を予定に変換します</small></span>
-      <span class="next-action-arrow">→</span>
+      <span class="next-action-arrow" aria-hidden="true">→</span>
     </button>
   </section>
 
