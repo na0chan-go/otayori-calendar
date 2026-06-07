@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +12,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	letterdomain "github.com/na0chan-go/otayori-calendar/backend/internal/domain/letter"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
+	letterport "github.com/na0chan-go/otayori-calendar/backend/internal/port/letter"
+	letterusecase "github.com/na0chan-go/otayori-calendar/backend/internal/usecase/letter"
 	"gorm.io/gorm"
 )
 
@@ -175,30 +179,57 @@ func (s *Server) deleteLetter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "letter not found")
 	}
 
-	var letter model.Letter
-	if err := s.db.WithContext(c.Request().Context()).
-		First(&letter, "id = ? AND user_id = ?", letterID, userID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return echo.NewHTTPError(http.StatusNotFound, "letter not found")
-		}
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to load letter")
-	}
-
-	quarantinePath, err := quarantineLetterImage(letter.ImagePath)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to prepare letter image deletion")
-	}
-
-	if err := s.db.WithContext(c.Request().Context()).Delete(&letter).Error; err != nil {
-		_ = restoreQuarantinedLetterImage(quarantinePath, letter.ImagePath)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete letter")
-	}
-
-	if err := removeQuarantinedLetterImage(quarantinePath); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete letter image")
+	adapter := &letterDeletionAdapter{server: s}
+	err = (letterusecase.Delete{Repository: adapter, Storage: adapter}).
+		Execute(c.Request().Context(), letterID, userID)
+	switch {
+	case errors.Is(err, letterusecase.ErrNotFound):
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	case errors.Is(err, letterusecase.ErrLoadFailed),
+		errors.Is(err, letterusecase.ErrPrepareDeletionFailed),
+		errors.Is(err, letterusecase.ErrDeleteFailed),
+		errors.Is(err, letterusecase.ErrImageDeletionFailed):
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	case err != nil:
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+type letterDeletionAdapter struct {
+	server *Server
+}
+
+func (a *letterDeletionAdapter) FindOwned(ctx context.Context, letterID, userID uuid.UUID) (letterdomain.Letter, error) {
+	var letter model.Letter
+	if err := a.server.db.WithContext(ctx).First(&letter, "id = ? AND user_id = ?", letterID, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return letterdomain.Letter{}, letterport.ErrNotFound
+		}
+		return letterdomain.Letter{}, err
+	}
+	return letterDomain(letter), nil
+}
+
+func (a *letterDeletionAdapter) Delete(ctx context.Context, letter letterdomain.Letter) error {
+	return a.server.db.WithContext(ctx).Delete(&model.Letter{ID: letter.ID}).Error
+}
+
+func (a *letterDeletionAdapter) Quarantine(_ context.Context, imagePath string) (string, error) {
+	return quarantineLetterImage(imagePath)
+}
+
+func (a *letterDeletionAdapter) Restore(_ context.Context, quarantinePath, imagePath string) error {
+	return restoreQuarantinedLetterImage(quarantinePath, imagePath)
+}
+
+func (a *letterDeletionAdapter) Remove(_ context.Context, quarantinePath string) error {
+	return removeQuarantinedLetterImage(quarantinePath)
+}
+
+func letterDomain(letter model.Letter) letterdomain.Letter {
+	return letterdomain.Letter{ID: letter.ID, UserID: letter.UserID, ImagePath: letter.ImagePath}
 }
 
 func quarantineLetterImage(imagePath string) (string, error) {
