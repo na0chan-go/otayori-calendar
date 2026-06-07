@@ -135,3 +135,15 @@
   flex-wrap: wrap;
   gap: 10px;
 }
+
+.field-error {
+  color: var(--danger);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}

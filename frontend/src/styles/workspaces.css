@@ -361,7 +361,8 @@
 
 .status-chip,
 .warning-chip,
-.source-type-chip {
+.source-type-chip,
+.unsaved-chip {
   width: fit-content;
   margin-bottom: 0;
   border-radius: 999px;
@@ -373,6 +374,7 @@
 .status-chip { color: #355446 !important; background: var(--mint); }
 .warning-chip { color: #745b22 !important; background: var(--lime); }
 .source-type-chip { color: #525d57 !important; background: #edf1ee; }
+.unsaved-chip { color: #6b572d !important; background: var(--sand); }
 
 .source-box {
   display: grid;

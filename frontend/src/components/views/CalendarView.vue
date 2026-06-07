@@ -16,6 +16,7 @@ const {
   manualEvent,
   retryCalendarEvent,
   retryingCalendarEventId,
+  resetManualEvent,
   savingEvent,
   showManualEventForm,
   switchView,
@@ -23,6 +24,7 @@ const {
 
 type CalendarFilter = 'upcoming' | 'past' | 'all'
 const calendarFilter = ref<CalendarFilter>('upcoming')
+const manualFormSubmitted = ref(false)
 
 const filteredCalendarEvents = computed(() => {
   const today = localToday()
@@ -53,6 +55,50 @@ watch(focusedCalendarEventKey, async (key) => {
 
 function goToNextCalendarAction() {
   switchView(extractedEvents.value.length > 0 ? 'candidates' : 'letters')
+}
+
+const manualEventErrors = computed(() => {
+  const errors: Record<string, string> = {}
+  if (!manualEvent.value.title.trim()) errors.title = '予定名を入力してください'
+  if (!manualEvent.value.event_date) errors.event_date = '日付を選択してください'
+  if (!manualEvent.value.is_all_day) {
+    if (!manualEvent.value.start_time) errors.start_time = '開始時刻を選択してください'
+    if (!manualEvent.value.end_time) errors.end_time = '終了時刻を選択してください'
+    if (manualEvent.value.start_time && manualEvent.value.end_time && manualEvent.value.end_time <= manualEvent.value.start_time) {
+      errors.end_time = '終了時刻は開始時刻より後にしてください'
+    }
+  }
+  return errors
+})
+
+function showManualError(field: string) {
+  return manualFormSubmitted.value ? manualEventErrors.value[field] : ''
+}
+
+async function submitManualEvent() {
+  manualFormSubmitted.value = true
+  if (Object.keys(manualEventErrors.value).length > 0) {
+    await nextTick()
+    const invalidInput = document.querySelector<HTMLInputElement>('.manual-section [aria-invalid="true"]')
+    invalidInput?.focus()
+    invalidInput?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    return
+  }
+  await createManualEvent()
+  manualFormSubmitted.value = false
+}
+
+function toggleManualEventForm() {
+  if (showManualEventForm.value && hasManualInput() && !window.confirm('入力途中の予定があります。破棄して閉じますか？')) return
+  if (showManualEventForm.value) {
+    resetManualEvent()
+    manualFormSubmitted.value = false
+  }
+  showManualEventForm.value = !showManualEventForm.value
+}
+
+function hasManualInput() {
+  return Object.entries(manualEvent.value).some(([key, value]) => key !== 'is_all_day' && value !== '')
 }
 
 function localToday() {
@@ -130,17 +176,17 @@ function formatDate(date: string) {
   </section>
 
   <section id="manual" class="workspace-section manual-section">
-    <button class="manual-toggle" type="button" @click="showManualEventForm = !showManualEventForm">
+    <button class="manual-toggle" type="button" @click="toggleManualEventForm">
       <span><strong>予定を手入力</strong><small>おたよりにない予定を追加</small></span>
       <span>{{ showManualEventForm ? '閉じる' : '＋ 追加する' }}</span>
     </button>
-    <form v-if="showManualEventForm" class="surface form-grid" @submit.prevent="createManualEvent">
-      <label>予定名<input v-model="manualEvent.title" required type="text" placeholder="例：身体測定" /></label>
-      <label>日付<input v-model="manualEvent.event_date" required type="date" /></label>
+    <form v-if="showManualEventForm" class="surface form-grid" novalidate @submit.prevent="submitManualEvent">
+      <label>予定名<input v-model="manualEvent.title" :aria-invalid="!!showManualError('title')" required type="text" placeholder="例：身体測定" /><small v-if="showManualError('title')" class="field-error">{{ showManualError('title') }}</small></label>
+      <label>日付<input v-model="manualEvent.event_date" :aria-invalid="!!showManualError('event_date')" required type="date" /><small v-if="showManualError('event_date')" class="field-error">{{ showManualError('event_date') }}</small></label>
       <label class="checkbox-label"><input v-model="manualEvent.is_all_day" type="checkbox" />終日予定として登録する</label>
       <div v-if="!manualEvent.is_all_day" class="time-grid">
-        <label>開始<input v-model="manualEvent.start_time" required type="time" /></label>
-        <label>終了<input v-model="manualEvent.end_time" required type="time" /></label>
+        <label>開始<input v-model="manualEvent.start_time" :aria-invalid="!!showManualError('start_time')" required type="time" /><small v-if="showManualError('start_time')" class="field-error">{{ showManualError('start_time') }}</small></label>
+        <label>終了<input v-model="manualEvent.end_time" :aria-invalid="!!showManualError('end_time')" required type="time" /><small v-if="showManualError('end_time')" class="field-error">{{ showManualError('end_time') }}</small></label>
       </div>
       <label>場所<input v-model="manualEvent.location" type="text" placeholder="例：保育園" /></label>
       <label>メモ<textarea v-model="manualEvent.description" rows="3" placeholder="持ち物や注意事項"></textarea></label>

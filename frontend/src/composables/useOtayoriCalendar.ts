@@ -1,4 +1,4 @@
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { User, ViewName } from '../types'
 import { apiBaseUrl } from './api'
 import { useCalendarEvents } from './useCalendarEvents'
@@ -26,11 +26,21 @@ export function useOtayoriCalendar() {
   })
 
   function switchView(view: ViewName) {
+    if (view !== activeView.value && hasUnsavedChanges() && !window.confirm('保存していない変更があります。保存せずに画面を移動しますか？入力内容はこの画面に戻るまで保持されます。')) return
     if (view === 'candidates') candidates.selectedCandidateLetterId.value = ''
     focusedCalendarEventKey.value = ''
     focusedCandidateId.value = ''
     activeView.value = view
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function hasUnsavedChanges() {
+    return candidates.hasUnsavedCandidateChanges.value || calendar.hasUnsavedManualEvent.value
+  }
+
+  function warnBeforeUnload(event: BeforeUnloadEvent) {
+    if (!hasUnsavedChanges()) return
+    event.preventDefault()
   }
 
   function openCandidate(id: string) {
@@ -88,7 +98,11 @@ export function useOtayoriCalendar() {
     if (user.value) localStorage.setItem(onboardingStorageKey(user.value.id), 'seen')
   }
 
-  onMounted(loadMe)
+  onMounted(() => {
+    loadMe()
+    window.addEventListener('beforeunload', warnBeforeUnload)
+  })
+  onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload))
 
   return {
     activeView,
