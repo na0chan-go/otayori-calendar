@@ -13,3 +13,7 @@ type CalendarGateway interface {
 type RegistrationRepository interface {
 	Save(ctx context.Context, registration extractedeventdomain.Registration) error
 }
+
+type StateRepository interface {
+	SaveState(ctx context.Context, state extractedeventdomain.State) error
+}

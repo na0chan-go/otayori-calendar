@@ -148,15 +148,8 @@ func (s *Server) bulkConfirmExtractedEvents(c echo.Context) error {
 			response.addFailure(eventID.String(), "extracted event not found")
 			continue
 		}
-		if event.Status == model.ExtractedEventStatusRegistered {
-			response.addFailure(event.ID.String(), "registered events cannot be confirmed")
-			continue
-		}
-
-		event.Status = model.ExtractedEventStatusConfirmed
-		event.GoogleCalendarEventID = ""
-		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
-			response.addFailure(event.ID.String(), "failed to confirm extracted event")
+		if err := s.changeExtractedEventState(&event).Confirm(c.Request().Context(), extractedEventState(event)); err != nil {
+			response.addFailure(event.ID.String(), bulkStateChangeMessage(err, "failed to confirm extracted event"))
 			continue
 		}
 		response.addSuccess(event, "confirmed")
@@ -180,13 +173,10 @@ func (s *Server) ignoreExtractedEvent(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	if event.Status == model.ExtractedEventStatusRegistered {
-		return echo.NewHTTPError(http.StatusConflict, "registered events cannot be ignored")
-	}
-
-	event.Status = model.ExtractedEventStatusIgnored
-	event.GoogleCalendarEventID = ""
-	if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
+	if err := s.changeExtractedEventState(&event).Ignore(c.Request().Context(), extractedEventState(event)); err != nil {
+		if errors.Is(err, extractedeventdomain.ErrRegisteredCannotBeIgnored) {
+			return echo.NewHTTPError(http.StatusConflict, err.Error())
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ignore extracted event")
 	}
 
@@ -216,15 +206,8 @@ func (s *Server) bulkIgnoreExtractedEvents(c echo.Context) error {
 			response.addFailure(eventID.String(), "extracted event not found")
 			continue
 		}
-		if event.Status == model.ExtractedEventStatusRegistered {
-			response.addFailure(event.ID.String(), "registered events cannot be ignored")
-			continue
-		}
-
-		event.Status = model.ExtractedEventStatusIgnored
-		event.GoogleCalendarEventID = ""
-		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
-			response.addFailure(event.ID.String(), "failed to ignore extracted event")
+		if err := s.changeExtractedEventState(&event).Ignore(c.Request().Context(), extractedEventState(event)); err != nil {
+			response.addFailure(event.ID.String(), bulkStateChangeMessage(err, "failed to ignore extracted event"))
 			continue
 		}
 		response.addSuccess(event, "ignored")
@@ -256,14 +239,13 @@ func (s *Server) restoreExtractedEventStatuses(c echo.Context) error {
 			response.addFailure(restore.ID, "extracted event not found")
 			continue
 		}
-		if err := validateExtractedEventStatusRestore(event.Status, restore.ExpectedStatus, restore.Status); err != nil {
-			response.addFailure(restore.ID, err.Error())
-			continue
-		}
-
-		event.Status = restore.Status
-		if err := s.db.WithContext(c.Request().Context()).Save(&event).Error; err != nil {
-			response.addFailure(restore.ID, "failed to restore extracted event")
+		if err := s.changeExtractedEventState(&event).Restore(
+			c.Request().Context(),
+			extractedEventState(event),
+			restore.ExpectedStatus,
+			restore.Status,
+		); err != nil {
+			response.addFailure(restore.ID, bulkStateChangeMessage(err, "failed to restore extracted event"))
 			continue
 		}
 		response.addSuccess(event, "restored")
@@ -451,6 +433,41 @@ type extractedEventRegistrationRepository struct {
 	event  *model.ExtractedEvent
 }
 
+type extractedEventStateRepository struct {
+	server *Server
+	event  *model.ExtractedEvent
+}
+
+func (r extractedEventStateRepository) SaveState(ctx context.Context, state extractedeventdomain.State) error {
+	applyExtractedEventState(r.event, state)
+	return r.server.db.WithContext(ctx).Save(r.event).Error
+}
+
+func (s *Server) changeExtractedEventState(event *model.ExtractedEvent) extractedeventusecase.ChangeState {
+	return extractedeventusecase.ChangeState{
+		Repository: extractedEventStateRepository{server: s, event: event},
+	}
+}
+
+func extractedEventState(event model.ExtractedEvent) extractedeventdomain.State {
+	return extractedeventdomain.State{
+		Status:          event.Status,
+		CalendarEventID: event.GoogleCalendarEventID,
+	}
+}
+
+func applyExtractedEventState(event *model.ExtractedEvent, state extractedeventdomain.State) {
+	event.Status = state.Status
+	event.GoogleCalendarEventID = state.CalendarEventID
+}
+
+func bulkStateChangeMessage(err error, saveMessage string) string {
+	if errors.Is(err, extractedeventusecase.ErrSaveStateFailed) {
+		return saveMessage
+	}
+	return err.Error()
+}
+
 func (r extractedEventRegistrationRepository) Save(ctx context.Context, registration extractedeventdomain.Registration) error {
 	applyExtractedEventRegistration(r.event, registration)
 	return r.server.db.WithContext(ctx).Save(r.event).Error
@@ -572,19 +589,8 @@ func validateExtractedEventEditable(event model.ExtractedEvent) error {
 }
 
 func validateExtractedEventStatusRestore(currentStatus, expectedStatus, targetStatus string) error {
-	if currentStatus != expectedStatus {
-		return errors.New("event status changed after the original action")
-	}
-	if !isLocallyRestorableExtractedEventStatus(currentStatus) || !isLocallyRestorableExtractedEventStatus(targetStatus) {
-		return errors.New("event status cannot be restored")
-	}
-	return nil
-}
-
-func isLocallyRestorableExtractedEventStatus(status string) bool {
-	return status == model.ExtractedEventStatusDraft ||
-		status == model.ExtractedEventStatusConfirmed ||
-		status == model.ExtractedEventStatusIgnored
+	_, err := (extractedeventdomain.State{Status: currentStatus}).Restored(expectedStatus, targetStatus)
+	return err
 }
 
 func applyExtractedEventUpdate(event *model.ExtractedEvent, req updateExtractedEventRequest) error {
