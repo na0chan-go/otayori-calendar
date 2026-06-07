@@ -154,6 +154,76 @@
   margin-top: 58px;
 }
 
+.weekly-timeline {
+  margin-top: 58px;
+}
+
+.timeline-groups,
+.timeline-group {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-groups {
+  gap: 20px;
+}
+
+.timeline-group {
+  border-left: 3px solid var(--mint-strong);
+  padding-left: 16px;
+}
+
+.timeline-group.overdue {
+  border-left-color: var(--danger);
+}
+
+.timeline-group h3 {
+  margin-bottom: 2px;
+  font-size: 1rem;
+}
+
+.timeline-group.overdue h3 {
+  color: var(--danger);
+}
+
+.timeline-item {
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--white);
+  padding: 14px;
+  color: var(--ink);
+  text-align: left;
+}
+
+.timeline-item > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+}
+
+.timeline-item small {
+  color: var(--muted);
+}
+
+.timeline-type {
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.timeline-type.event { background: var(--mint); color: #245b40; }
+.timeline-type.belongings { background: var(--lime); color: #53621e; }
+.timeline-type.deadline { background: var(--sand); color: #6b572d; }
+
+.compact-empty-state {
+  min-height: 0;
+}
+
 .important-event-grid {
   display: grid;
   gap: 12px;

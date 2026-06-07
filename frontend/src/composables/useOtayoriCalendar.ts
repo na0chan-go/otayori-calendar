@@ -8,6 +8,8 @@ import { useLetters } from './useLetters'
 export function useOtayoriCalendar() {
   const activeView = ref<ViewName>('home')
   const errorMessage = ref('')
+  const focusedCalendarEventKey = ref('')
+  const focusedCandidateId = ref('')
   const loading = ref(true)
   const showOnboardingGuide = ref(false)
   const user = ref<User | null>(null)
@@ -25,8 +27,21 @@ export function useOtayoriCalendar() {
 
   function switchView(view: ViewName) {
     if (view === 'candidates') candidates.selectedCandidateLetterId.value = ''
+    focusedCalendarEventKey.value = ''
+    focusedCandidateId.value = ''
     activeView.value = view
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function openCandidate(id: string) {
+    candidates.selectedCandidateLetterId.value = ''
+    focusedCandidateId.value = id
+    activeView.value = 'candidates'
+  }
+
+  function openCalendarEvent(sourceType: string, id: string) {
+    focusedCalendarEventKey.value = `${sourceType}-${id}`
+    activeView.value = 'calendar'
   }
 
   async function loadMe() {
@@ -80,12 +95,16 @@ export function useOtayoriCalendar() {
     ...calendar,
     ...candidates,
     errorMessage,
+    focusedCalendarEventKey,
+    focusedCandidateId,
     ...letters,
     loading,
     loginWithGoogle,
     logout,
     closeOnboardingGuide,
     openOnboardingGuide,
+    openCalendarEvent,
+    openCandidate,
     showOnboardingGuide,
     switchView,
     user,

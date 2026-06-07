@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import RegistrationPreview from '../RegistrationPreview.vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
 import type { ExtractedEvent } from '../../types'
@@ -17,6 +17,7 @@ const {
   eventDrafts,
   extractedEvents,
   extractedStatusLabel,
+  focusedCandidateId,
   hasUnregisterableSelectedEvents,
   ignoreExtractedEvent,
   registerExtractedEvent,
@@ -70,6 +71,15 @@ watch(
     selectedCandidateIds.value = selectedCandidateIds.value.filter((id) => visibleIdSet.has(id))
   },
 )
+
+watch(focusedCandidateId, async (id) => {
+  if (!id) return
+  statusFilter.value = 'all'
+  dateFilter.value = 'all'
+  expandedCandidateIds.value = [...new Set([...expandedCandidateIds.value, id])]
+  await nextTick()
+  document.querySelector(`[data-candidate-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}, { immediate: true })
 
 function matchesStatusFilter(event: ExtractedEvent) {
   if (statusFilter.value === 'all') return true
@@ -196,7 +206,8 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
       v-for="event in filteredExtractedEvents"
       :key="event.id"
       class="surface candidate-card"
-      :class="[`status-${event.status}`, { ignored: event.status === 'ignored' }]"
+      :class="[`status-${event.status}`, { ignored: event.status === 'ignored', focused: focusedCandidateId === event.id }]"
+      :data-candidate-id="event.id"
     >
       <div class="candidate-heading candidate-summary">
         <div class="candidate-title-row">

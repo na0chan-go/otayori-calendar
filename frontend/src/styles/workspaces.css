@@ -6,6 +6,32 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.calendar-date-groups,
+.calendar-date-group {
+  display: grid;
+  gap: 16px;
+}
+
+.calendar-date-groups {
+  gap: 28px;
+}
+
+.calendar-date-group > h3 {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  font-size: 1rem;
+}
+
+.calendar-filters {
+  margin-bottom: 0;
+}
+
+.candidate-card.focused,
+.registered-event-card.focused {
+  outline: 3px solid var(--lime);
+  outline-offset: 4px;
+}
+
 .image-preparation {
   display: grid;
   gap: 14px;

@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
+import type { CalendarEvent } from '../../types'
 
 const {
   calendarEvents,
@@ -9,6 +11,7 @@ const {
   createManualEvent,
   extractedEvents,
   eventMessage,
+  focusedCalendarEventKey,
   formatCalendarEventTime,
   manualEvent,
   retryCalendarEvent,
@@ -18,8 +21,53 @@ const {
   switchView,
 } = useOtayoriCalendarContext()
 
+type CalendarFilter = 'upcoming' | 'past' | 'all'
+const calendarFilter = ref<CalendarFilter>('upcoming')
+
+const filteredCalendarEvents = computed(() => {
+  const today = localToday()
+  return calendarEvents.value.filter((event) => {
+    const date = event.event_date.slice(0, 10)
+    if (calendarFilter.value === 'upcoming') return date >= today || event.status !== 'registered'
+    if (calendarFilter.value === 'past') return date < today
+    return true
+  })
+})
+
+const calendarGroups = computed(() => {
+  const groups = new Map<string, CalendarEvent[]>()
+  filteredCalendarEvents.value.forEach((event) => {
+    const date = event.event_date.slice(0, 10)
+    groups.set(date, [...(groups.get(date) ?? []), event])
+  })
+  return Array.from(groups, ([date, events]) => ({ date, events }))
+    .sort((a, b) => calendarFilter.value === 'past' ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date))
+})
+
+watch(focusedCalendarEventKey, async (key) => {
+  if (!key) return
+  calendarFilter.value = 'all'
+  await nextTick()
+  document.querySelector(`[data-calendar-key="${key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}, { immediate: true })
+
 function goToNextCalendarAction() {
   switchView(extractedEvents.value.length > 0 ? 'candidates' : 'letters')
+}
+
+function localToday() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+function calendarDateHeading(date: string) {
+  const today = localToday()
+  if (date === today) return `今日 · ${formatDate(date)}`
+  return formatDate(date)
+}
+
+function formatDate(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 }
 </script>
 
@@ -36,13 +84,25 @@ function goToNextCalendarAction() {
         {{ extractedEvents.length > 0 ? '予定候補を確認する' : 'おたよりを追加する' }}
       </button>
     </div>
-    <div class="calendar-grid">
-      <article
-        v-for="event in calendarEvents"
-        :key="`${event.source_type}-${event.id}`"
-        class="surface registered-event-card"
-        :class="{ failed: event.status === 'failed', deleted: event.status === 'deleted' }"
-      >
+    <div v-if="calendarEvents.length > 0" class="candidate-filters surface calendar-filters">
+      <div class="filter-options">
+        <button :class="{ active: calendarFilter === 'upcoming' }" type="button" @click="calendarFilter = 'upcoming'">今後・要対応</button>
+        <button :class="{ active: calendarFilter === 'past' }" type="button" @click="calendarFilter = 'past'">過去</button>
+        <button :class="{ active: calendarFilter === 'all' }" type="button" @click="calendarFilter = 'all'">すべて</button>
+      </div>
+      <p class="filter-result"><strong>{{ filteredCalendarEvents.length }}件</strong> を表示中 / 全{{ calendarEvents.length }}件</p>
+    </div>
+    <div class="calendar-date-groups">
+      <section v-for="group in calendarGroups" :key="group.date" class="calendar-date-group">
+        <h3>{{ calendarDateHeading(group.date) }}</h3>
+        <div class="calendar-grid">
+          <article
+            v-for="event in group.events as CalendarEvent[]"
+            :key="`${event.source_type}-${event.id}`"
+            class="surface registered-event-card"
+            :class="{ failed: event.status === 'failed', deleted: event.status === 'deleted', focused: focusedCalendarEventKey === `${event.source_type}-${event.id}` }"
+            :data-calendar-key="`${event.source_type}-${event.id}`"
+          >
         <div class="candidate-heading">
           <div>
             <p class="status-chip">{{ calendarStatusLabel(event.status) }}</p>
@@ -62,7 +122,9 @@ function goToNextCalendarAction() {
         <button v-if="canRetryCalendarEvent(event)" class="secondary-button" :disabled="retryingCalendarEventId === event.id" type="button" @click="retryCalendarEvent(event)">
           {{ retryingCalendarEventId === event.id ? '再実行中...' : '再登録する' }}
         </button>
-      </article>
+          </article>
+        </div>
+      </section>
     </div>
     <p v-if="calendarMessage" class="notice success-notice">{{ calendarMessage }}</p>
   </section>
