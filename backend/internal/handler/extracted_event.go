@@ -11,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 	extractedeventdomain "github.com/na0chan-go/otayori-calendar/backend/internal/domain/extractedevent"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
+	extractedeventusecase "github.com/na0chan-go/otayori-calendar/backend/internal/usecase/extractedevent"
 	"golang.org/x/oauth2"
 	calendar "google.golang.org/api/calendar/v3"
 	"gorm.io/gorm"
@@ -65,8 +66,8 @@ var (
 	errExtractedEventNotEditable       = errors.New("registered events cannot be edited")
 	errExtractedEventNotRegisterable   = extractedeventdomain.ErrNotRegisterable
 	errGoogleCalendarEventIDMissing    = extractedeventdomain.ErrCalendarEventIDMissing
-	errGoogleCalendarEventCreateFailed = errors.New("failed to create google calendar event")
-	errSaveExtractedEventFailed        = errors.New("failed to save extracted event")
+	errGoogleCalendarEventCreateFailed = extractedeventusecase.ErrCalendarEventCreateFailed
+	errSaveExtractedEventFailed        = extractedeventusecase.ErrSaveRegistrationFailed
 )
 
 func (s *Server) listExtractedEvents(c echo.Context) error {
@@ -418,24 +419,41 @@ func (s *Server) registerExtractedEventRecord(ctx context.Context, userID uuid.U
 		return err
 	}
 
-	createdEvent, err := s.insertGoogleCalendarEvent(ctx, userID, googleToken, googleEvent)
-	if err != nil {
-		applyExtractedEventRegistration(event, registration.Failed())
-		_ = s.db.WithContext(ctx).Save(event).Error
-		return errGoogleCalendarEventCreateFailed
+	usecase := extractedeventusecase.Register{
+		Calendar: extractedEventCalendarGateway{
+			server:      s,
+			userID:      userID,
+			googleToken: googleToken,
+			googleEvent: googleEvent,
+		},
+		Repository: extractedEventRegistrationRepository{server: s, event: event},
 	}
-	registration, err = registration.Registered(createdEvent.Id)
-	if err != nil {
-		applyExtractedEventRegistration(event, registration)
-		_ = s.db.WithContext(ctx).Save(event).Error
-		return err
-	}
+	return usecase.Execute(ctx, registration)
+}
 
-	applyExtractedEventRegistration(event, registration)
-	if err := s.db.WithContext(ctx).Save(event).Error; err != nil {
-		return errSaveExtractedEventFailed
+type extractedEventCalendarGateway struct {
+	server      *Server
+	userID      uuid.UUID
+	googleToken *oauth2.Token
+	googleEvent *calendar.Event
+}
+
+func (g extractedEventCalendarGateway) Create(ctx context.Context) (string, error) {
+	createdEvent, err := g.server.insertGoogleCalendarEvent(ctx, g.userID, g.googleToken, g.googleEvent)
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return createdEvent.Id, nil
+}
+
+type extractedEventRegistrationRepository struct {
+	server *Server
+	event  *model.ExtractedEvent
+}
+
+func (r extractedEventRegistrationRepository) Save(ctx context.Context, registration extractedeventdomain.Registration) error {
+	applyExtractedEventRegistration(r.event, registration)
+	return r.server.db.WithContext(ctx).Save(r.event).Error
 }
 
 func validateExtractedEventRegisterable(event model.ExtractedEvent) error {
