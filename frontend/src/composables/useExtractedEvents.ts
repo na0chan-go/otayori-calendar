@@ -7,6 +7,7 @@ import type {
   UndoStatusRestore,
 } from '../types'
 import { apiBaseUrl } from './api'
+import { toUserErrorMessage } from '../utils/requestError'
 
 export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEvents: () => Promise<void>) {
   const bulkCandidateAction = ref('')
@@ -93,7 +94,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       replaceExtractedEvent(body.event)
       candidateMessage.value = successMessage
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予定候補の更新でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定候補の更新でエラーが発生しました')
     } finally {
       savingCandidateId.value = ''
     }
@@ -123,7 +124,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       ])
       return true
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予定候補の除外でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定候補の除外でエラーが発生しました')
       return false
     } finally {
       savingCandidateId.value = ''
@@ -150,8 +151,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       candidateMessage.value = '予定候補をGoogleカレンダーへ登録しました'
       await refreshCalendarEvents()
     } catch (error) {
-      errorMessage.value =
-        error instanceof Error ? error.message : '予定候補のGoogleカレンダー登録でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定候補のGoogleカレンダー登録でエラーが発生しました')
     } finally {
       registeringCandidateId.value = ''
     }
@@ -219,8 +219,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
       }
       if (action === 'register') await refreshCalendarEvents()
     } catch (error) {
-      errorMessage.value =
-        error instanceof Error ? error.message : `予定候補の一括${actionLabels[action]}でエラーが発生しました`
+      errorMessage.value = toUserErrorMessage(error, `予定候補の一括${actionLabels[action]}でエラーが発生しました`)
     } finally {
       bulkCandidateAction.value = ''
     }
@@ -254,7 +253,7 @@ export function useExtractedEvents(errorMessage: Ref<string>, refreshCalendarEve
           ? `${body.summary.success}件の操作を取り消しました`
           : `取り消し: 成功 ${body.summary.success}件 / 失敗 ${body.summary.failed}件。現在の状態を確認してください`
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '取り消しでエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '取り消しでエラーが発生しました')
       await loadExtractedEvents().catch(() => undefined)
     } finally {
       bulkCandidateAction.value = ''

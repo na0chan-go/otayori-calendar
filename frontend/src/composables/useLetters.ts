@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { ExtractedEvent, Letter } from '../types'
 import { apiBaseUrl } from './api'
+import { toUserErrorMessage } from '../utils/requestError'
 
 type LetterDependencies = {
   candidateCountForLetter: (letterId: string) => number
@@ -53,8 +54,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
       letterMessage.value = 'おたより画像をアップロードしました'
       await loadLetters()
     } catch (error) {
-      errorMessage.value =
-        error instanceof Error ? error.message : 'おたより画像のアップロードでエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, 'おたより画像のアップロードでエラーが発生しました')
     } finally {
       uploadingLetter.value = false
     }
@@ -88,7 +88,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
       dependencies.mergeExtractedEvents(body.events)
       letterMessage.value = 'AIで予定候補を抽出し、draftとして保存しました'
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予定候補の抽出でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定候補の抽出でエラーが発生しました')
     } finally {
       extractingLetterId.value = ''
     }
@@ -120,7 +120,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
       letterMessage.value = 'おたより画像と紐づく予定候補を削除しました'
       await Promise.all([loadLetters(), dependencies.refreshRelatedData()])
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : 'おたよりの削除でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, 'おたよりの削除でエラーが発生しました')
     } finally {
       deletingLetterId.value = ''
     }

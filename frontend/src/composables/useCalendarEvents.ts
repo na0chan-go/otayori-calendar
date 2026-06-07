@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from 'vue'
 import type { CalendarEvent } from '../types'
 import { apiBaseUrl } from './api'
+import { toUserErrorMessage } from '../utils/requestError'
 
 export function useCalendarEvents(errorMessage: Ref<string>) {
   const calendarEvents = ref<CalendarEvent[]>([])
@@ -44,7 +45,7 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
       calendarMessage.value = '失敗していた予定をGoogleカレンダーへ登録しました'
       await loadCalendarEvents()
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予定の再登録でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定の再登録でエラーが発生しました')
     } finally {
       retryingCalendarEventId.value = ''
     }
@@ -71,7 +72,7 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
       await loadCalendarEvents()
       manualEvent.value = emptyManualEvent()
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予定登録でエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予定登録でエラーが発生しました')
     } finally {
       savingEvent.value = false
     }

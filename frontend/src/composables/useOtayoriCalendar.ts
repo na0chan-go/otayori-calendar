@@ -4,6 +4,7 @@ import { apiBaseUrl } from './api'
 import { useCalendarEvents } from './useCalendarEvents'
 import { useExtractedEvents } from './useExtractedEvents'
 import { useLetters } from './useLetters'
+import { toUserErrorMessage } from '../utils/requestError'
 
 export function useOtayoriCalendar() {
   const activeView = ref<ViewName>('home')
@@ -11,6 +12,8 @@ export function useOtayoriCalendar() {
   const focusedCalendarEventKey = ref('')
   const focusedCandidateId = ref('')
   const loading = ref(true)
+  const isOnline = ref(navigator.onLine)
+  const refreshingData = ref(false)
   const showOnboardingGuide = ref(false)
   const user = ref<User | null>(null)
 
@@ -71,10 +74,27 @@ export function useOtayoriCalendar() {
       showOnboardingGuide.value = !localStorage.getItem(onboardingStorageKey(body.user.id))
       await Promise.all([letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '予期しないエラーが発生しました'
+      errorMessage.value = toUserErrorMessage(error, '予期しないエラーが発生しました')
     } finally {
       loading.value = false
     }
+  }
+
+  async function refreshData() {
+    if (!user.value || refreshingData.value) return
+    refreshingData.value = true
+    errorMessage.value = ''
+    try {
+      await Promise.all([letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
+    } catch (error) {
+      errorMessage.value = toUserErrorMessage(error, '最新状態を確認できませんでした')
+    } finally {
+      refreshingData.value = false
+    }
+  }
+
+  function updateOnlineStatus() {
+    isOnline.value = navigator.onLine
   }
 
   function loginWithGoogle() {
@@ -101,8 +121,14 @@ export function useOtayoriCalendar() {
   onMounted(() => {
     loadMe()
     window.addEventListener('beforeunload', warnBeforeUnload)
+    window.addEventListener('online', updateOnlineStatus)
+    window.addEventListener('offline', updateOnlineStatus)
   })
-  onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload))
+  onBeforeUnmount(() => {
+    window.removeEventListener('beforeunload', warnBeforeUnload)
+    window.removeEventListener('online', updateOnlineStatus)
+    window.removeEventListener('offline', updateOnlineStatus)
+  })
 
   return {
     activeView,
@@ -113,6 +139,7 @@ export function useOtayoriCalendar() {
     focusedCandidateId,
     ...letters,
     loading,
+    isOnline,
     loginWithGoogle,
     logout,
     closeOnboardingGuide,
@@ -120,6 +147,8 @@ export function useOtayoriCalendar() {
     openCalendarEvent,
     openCandidate,
     showOnboardingGuide,
+    refreshData,
+    refreshingData,
     switchView,
     user,
   }
