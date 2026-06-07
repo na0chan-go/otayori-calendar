@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/model"
 	"github.com/na0chan-go/otayori-calendar/backend/internal/service"
+	extractedeventusecase "github.com/na0chan-go/otayori-calendar/backend/internal/usecase/extractedevent"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -44,6 +46,7 @@ type extractionEvent struct {
 }
 
 var japaneseDatePattern = regexp.MustCompile(`(?m)(\d{1,2})月(\d{1,2})日[^\n]*(?:\n[^\n]*)?`)
+var errExternalAIInvalidOutput = errors.New("external AI returned invalid output")
 
 func (s *Server) extractLetterEvents(c echo.Context) error {
 	userID, err := s.currentUserID(c)
@@ -70,39 +73,61 @@ func (s *Server) extractLetterEvents(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	sourceOCRText := strings.TrimSpace(req.OCRText)
-	if sourceOCRText == "" {
-		sourceOCRText = strings.TrimSpace(letter.OCRText)
-	}
-
-	output, usedExternalAI, err := s.buildLetterExtractionOutput(c, letter, req, sourceOCRText)
+	adapter := &letterExtractionAdapter{server: s, letter: &letter}
+	extract := extractedeventusecase.Extract{Generator: adapter, Repository: adapter}
+	result, err := extract.Execute(c.Request().Context(), extractedeventusecase.ExtractInput{
+		OCRText:       req.OCRText,
+		StoredOCRText: letter.OCRText,
+		AIOutput:      req.AIOutput,
+		ReferenceYear: req.ReferenceYear,
+	})
 	if err != nil {
-		if usedExternalAI {
+		if errors.Is(err, errExternalAIInvalidOutput) {
+			return echo.NewHTTPError(http.StatusBadGateway, err.Error())
+		}
+		if errors.Is(err, extractedeventusecase.ErrSaveExtractionFailed) {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		}
+		if result.UsedExternalAI {
 			return externalAIHTTPError(err)
 		}
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	events, err := validateExtractionOutput(letter.ID, output)
+	return c.JSON(http.StatusCreated, map[string]any{"events": adapter.events})
+}
+
+type letterExtractionAdapter struct {
+	server *Server
+	letter *model.Letter
+	events []model.ExtractedEvent
+}
+
+func (a *letterExtractionAdapter) Generate(ctx context.Context, sourceOCRText, aiOutput string, referenceYear int) (bool, error) {
+	output, usedExternalAI, err := a.server.buildLetterExtractionOutput(ctx, *a.letter, extractionRequest{
+		AIOutput:      aiOutput,
+		ReferenceYear: referenceYear,
+	}, sourceOCRText)
 	if err != nil {
-		if usedExternalAI {
-			return echo.NewHTTPError(http.StatusBadGateway, "external AI returned invalid output")
-		}
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return usedExternalAI, err
 	}
 
-	if err := s.db.WithContext(c.Request().Context()).Transaction(func(tx *gorm.DB) error {
-		if sourceOCRText != "" && sourceOCRText != letter.OCRText {
-			if err := tx.Model(&letter).Update("ocr_text", sourceOCRText).Error; err != nil {
+	a.events, err = validateExtractionOutput(a.letter.ID, output)
+	if err != nil && usedExternalAI {
+		return true, errExternalAIInvalidOutput
+	}
+	return usedExternalAI, err
+}
+
+func (a *letterExtractionAdapter) SaveExtraction(ctx context.Context, sourceOCRText string) error {
+	return a.server.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if sourceOCRText != "" && sourceOCRText != a.letter.OCRText {
+			if err := tx.Model(a.letter).Update("ocr_text", sourceOCRText).Error; err != nil {
 				return err
 			}
 		}
-		return tx.Create(&events).Error
-	}); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save extracted events")
-	}
-
-	return c.JSON(http.StatusCreated, map[string]any{"events": events})
+		return tx.Create(&a.events).Error
+	})
 }
 
 func externalAIHTTPError(err error) *echo.HTTPError {
@@ -116,7 +141,7 @@ func externalAIHTTPError(err error) *echo.HTTPError {
 	}
 }
 
-func (s *Server) buildLetterExtractionOutput(c echo.Context, letter model.Letter, req extractionRequest, sourceOCRText string) (extractionOutput, bool, error) {
+func (s *Server) buildLetterExtractionOutput(ctx context.Context, letter model.Letter, req extractionRequest, sourceOCRText string) (extractionOutput, bool, error) {
 	if strings.TrimSpace(req.AIOutput) != "" || strings.TrimSpace(s.cfg.GeminiAPIKey) == "" {
 		output, err := buildExtractionOutput(req, sourceOCRText)
 		return output, false, err
@@ -136,7 +161,7 @@ func (s *Server) buildLetterExtractionOutput(c echo.Context, letter model.Letter
 		}
 	}
 
-	rawOutput, err := s.extractor.Extract(c.Request().Context(), service.GeminiExtractionRequest{
+	rawOutput, err := s.extractor.Extract(ctx, service.GeminiExtractionRequest{
 		OCRText:       sourceOCRText,
 		Image:         image,
 		MimeType:      letter.MimeType,
