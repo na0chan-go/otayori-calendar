@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
 import type { CalendarEvent, ExtractedEvent } from '../../types'
 import { buildLetterProgress } from '../../utils/letterProgress'
+import ChildrenManager from '../ChildrenManager.vue'
 
 const {
   attentionCalendarCount,
@@ -56,14 +57,14 @@ const weeklyTimeline = computed(() => {
     .forEach((event) => {
       const eventDate = event.event_date.slice(0, 10)
       if (!registeredCandidateIds.has(event.id) && eventDate >= today && eventDate <= weekEnd) {
-        items.push({ key: `event-${event.id}`, date: eventDate, title: event.title, detail: event.location || '予定', type: 'event', event })
+        items.push({ key: `event-${event.id}`, date: eventDate, title: event.title, detail: withChild(event, event.location || '予定'), type: 'event', event })
       }
       if (event.belongings && eventDate >= today && eventDate <= weekEnd) {
-        items.push({ key: `belongings-${event.id}`, date: eventDate, title: event.title, detail: event.belongings, type: 'belongings', event })
+        items.push({ key: `belongings-${event.id}`, date: eventDate, title: event.title, detail: withChild(event, event.belongings), type: 'belongings', event })
       }
       const deadline = event.submission_deadline?.slice(0, 10)
       if (deadline && deadline >= addDays(today, -7) && deadline <= weekEnd) {
-        items.push({ key: `deadline-${event.id}`, date: deadline, title: event.title, detail: 'この日までに提出', type: 'deadline', event })
+        items.push({ key: `deadline-${event.id}`, date: deadline, title: event.title, detail: withChild(event, 'この日までに提出'), type: 'deadline', event })
       }
     })
 
@@ -72,7 +73,7 @@ const weeklyTimeline = computed(() => {
     .forEach((event) => {
       const date = event.event_date.slice(0, 10)
       if (date >= today && date <= weekEnd) {
-        items.push({ key: `calendar-${event.source_type}-${event.id}`, date, title: event.title, detail: event.location || 'Googleカレンダー登録済み', type: 'event', calendarEvent: event })
+        items.push({ key: `calendar-${event.source_type}-${event.id}`, date, title: event.title, detail: [event.child_name, event.location || 'Googleカレンダー登録済み'].filter(Boolean).join(' · '), type: 'event', calendarEvent: event })
       }
     })
 
@@ -91,6 +92,11 @@ function openTimelineItem(item: TimelineItem) {
     return
   }
   if (item.event) openCandidate(item.event.id)
+}
+
+function withChild(event: ExtractedEvent, detail: string) {
+  const childName = letters.value.find((letter) => letter.id === event.letter_id)?.child_name
+  return [childName, detail].filter(Boolean).join(' · ')
 }
 
 function localDate(date: Date) {
@@ -187,6 +193,7 @@ function importantEventDate(event: (typeof extractedEvents.value)[number], local
           <time>{{ importantEventDate(event) }}</time>
         </div>
         <strong>{{ event.title }}</strong>
+        <span v-if="letters.find((letter) => letter.id === event.letter_id)?.child_name" class="child-chip" :style="{ '--child-color': letters.find((letter) => letter.id === event.letter_id)?.child_color }">{{ letters.find((letter) => letter.id === event.letter_id)?.child_name }}</span>
         <small v-if="event.belongings">{{ event.belongings }}</small>
         <small v-if="event.submission_deadline">この日までに提出</small>
       </button>
@@ -219,4 +226,6 @@ function importantEventDate(event: (typeof extractedEvents.value)[number], local
       <span class="next-action-arrow">→</span>
     </button>
   </section>
+
+  <ChildrenManager />
 </template>

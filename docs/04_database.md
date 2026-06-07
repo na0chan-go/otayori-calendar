@@ -37,12 +37,28 @@ CREATE TABLE google_tokens (
 CREATE TABLE letters (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id),
+  child_id UUID REFERENCES children(id) ON DELETE SET NULL,
   title TEXT,
   image_path TEXT NOT NULL,
   mime_type TEXT NOT NULL,
   file_size BIGINT NOT NULL,
   ocr_text TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+## children
+
+兄弟姉妹の予定を識別するため、ユーザーごとの表示名と識別色を保存する。子ども設定は任意で、既存データは未設定のまま利用できる。
+
+```sql
+CREATE TABLE children (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#8fcfb0',
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
 ```
 
@@ -114,6 +130,7 @@ OCR/AI抽出より先に、手入力した予定をGoogle Calendarへ登録す�
 CREATE TABLE manual_events (
   id UUID PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES users(id),
+  child_id UUID REFERENCES children(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   event_date DATE NOT NULL,
   start_at TIMESTAMPTZ,
@@ -133,3 +150,4 @@ CREATE TABLE manual_events (
 - 終日予定は `event_date` と `is_all_day` で表現する。
 - 時刻付き予定は `start_at` / `end_at` に保存する。
 - Googleカレンダー上で手動削除された予定は `status = deleted` として扱う。
+- 抽出予定は `letters.child_id`、手入力予定は `manual_events.child_id` から対象の子どもを判別する。

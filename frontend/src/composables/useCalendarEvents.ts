@@ -111,6 +111,7 @@ export function useCalendarEvents(errorMessage: Ref<string>) {
 
 function emptyManualEvent() {
   return {
+    child_id: '',
     title: '',
     event_date: '',
     is_all_day: true,

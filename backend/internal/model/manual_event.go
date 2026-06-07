@@ -17,6 +17,8 @@ type ManualEvent struct {
 	ID                    uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
 	UserID                uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
 	User                  User       `gorm:"constraint:OnDelete:CASCADE" json:"-"`
+	ChildID               *uuid.UUID `gorm:"type:uuid;index" json:"child_id"`
+	Child                 *Child     `gorm:"constraint:OnDelete:SET NULL" json:"-"`
 	Title                 string     `gorm:"not null" json:"title"`
 	EventDate             time.Time  `gorm:"type:date;not null" json:"event_date"`
 	StartAt               *time.Time `json:"start_at"`

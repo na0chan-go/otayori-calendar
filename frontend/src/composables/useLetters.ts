@@ -13,6 +13,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
   const deletingLetterId = ref('')
   const extractingLetterId = ref('')
   const letterImage = ref<File | null>(null)
+  const letterChildId = ref('')
   const letterMessage = ref('')
   const letterTitle = ref('')
   const letters = ref<Letter[]>([])
@@ -38,6 +39,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
       const formData = new FormData()
       formData.append('image', letterImage.value)
       formData.append('title', letterTitle.value)
+      formData.append('child_id', letterChildId.value)
 
       const response = await fetch(`${apiBaseUrl}/api/letters`, {
         method: 'POST',
@@ -50,6 +52,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
       }
 
       letterTitle.value = ''
+      letterChildId.value = ''
       letterImage.value = null
       letterMessage.value = 'おたより画像をアップロードしました'
       await loadLetters()
@@ -162,6 +165,7 @@ export function useLetters(errorMessage: Ref<string>, dependencies: LetterDepend
     extractEvents,
     extractingLetterId,
     letterImage,
+    letterChildId,
     letterMessage,
     letterTitle,
     letters,

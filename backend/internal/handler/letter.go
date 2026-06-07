@@ -31,18 +31,25 @@ var allowedLetterImageTypes = map[string]string{
 }
 
 type letterResponse struct {
-	ID        uuid.UUID `json:"id"`
-	Title     string    `json:"title"`
-	MimeType  string    `json:"mime_type"`
-	FileSize  int64     `json:"file_size"`
-	ImageURL  string    `json:"image_url"`
-	CreatedAt string    `json:"created_at"`
+	ID         uuid.UUID  `json:"id"`
+	ChildID    *uuid.UUID `json:"child_id"`
+	ChildName  string     `json:"child_name"`
+	ChildColor string     `json:"child_color"`
+	Title      string     `json:"title"`
+	MimeType   string     `json:"mime_type"`
+	FileSize   int64      `json:"file_size"`
+	ImageURL   string     `json:"image_url"`
+	CreatedAt  string     `json:"created_at"`
 }
 
 func (s *Server) uploadLetter(c echo.Context) error {
 	userID, err := s.currentUserID(c)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "not logged in")
+	}
+	child, err := s.loadOptionalOwnedChild(c.Request().Context(), userID, c.FormValue("child_id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, maxLetterUploadBodySize)
@@ -108,10 +115,14 @@ func (s *Server) uploadLetter(c echo.Context) error {
 	letter := model.Letter{
 		ID:        letterID,
 		UserID:    userID,
+		Child:     child,
 		Title:     strings.TrimSpace(c.FormValue("title")),
 		ImagePath: imagePath,
 		MimeType:  mimeType,
 		FileSize:  written,
+	}
+	if child != nil {
+		letter.ChildID = &child.ID
 	}
 	if err := s.db.WithContext(c.Request().Context()).Create(&letter).Error; err != nil {
 		_ = os.Remove(imagePath)
@@ -129,6 +140,7 @@ func (s *Server) listLetters(c echo.Context) error {
 
 	var letters []model.Letter
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Child").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&letters).Error; err != nil {
@@ -258,12 +270,18 @@ func removeQuarantinedLetterImage(quarantinePath string) error {
 }
 
 func newLetterResponse(letter model.Letter) letterResponse {
-	return letterResponse{
+	response := letterResponse{
 		ID:        letter.ID,
+		ChildID:   letter.ChildID,
 		Title:     letter.Title,
 		MimeType:  letter.MimeType,
 		FileSize:  letter.FileSize,
 		ImageURL:  fmt.Sprintf("/api/letters/%s/image", letter.ID.String()),
 		CreatedAt: letter.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+	if letter.Child != nil {
+		response.ChildName = letter.Child.Name
+		response.ChildColor = letter.Child.Color
+	}
+	return response
 }

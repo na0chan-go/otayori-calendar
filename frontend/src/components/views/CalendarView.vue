@@ -9,6 +9,7 @@ const {
   calendarStatusLabel,
   canRetryCalendarEvent,
   createManualEvent,
+  children,
   extractedEvents,
   eventMessage,
   focusedCalendarEventKey,
@@ -24,15 +25,17 @@ const {
 
 type CalendarFilter = 'upcoming' | 'past' | 'all'
 const calendarFilter = ref<CalendarFilter>('upcoming')
+const childFilter = ref('')
 const manualFormSubmitted = ref(false)
 
 const filteredCalendarEvents = computed(() => {
   const today = localToday()
   return calendarEvents.value.filter((event) => {
     const date = event.event_date.slice(0, 10)
-    if (calendarFilter.value === 'upcoming') return date >= today || event.status !== 'registered'
-    if (calendarFilter.value === 'past') return date < today
-    return true
+    const matchesDate = calendarFilter.value === 'upcoming'
+      ? date >= today || event.status !== 'registered'
+      : calendarFilter.value === 'past' ? date < today : true
+    return matchesDate && (!childFilter.value || event.child_id === childFilter.value)
   })
 })
 
@@ -137,6 +140,10 @@ function formatDate(date: string) {
         <button :class="{ active: calendarFilter === 'all' }" type="button" @click="calendarFilter = 'all'">すべて</button>
       </div>
       <p class="filter-result"><strong>{{ filteredCalendarEvents.length }}件</strong> を表示中 / 全{{ calendarEvents.length }}件</p>
+      <div v-if="children.length > 0" class="filter-options">
+        <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべての子ども</button>
+        <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+      </div>
     </div>
     <div class="calendar-date-groups">
       <section v-for="group in calendarGroups" :key="group.date" class="calendar-date-group">
@@ -153,6 +160,7 @@ function formatDate(date: string) {
           <div>
             <p class="status-chip">{{ calendarStatusLabel(event.status) }}</p>
             <h3>{{ event.title }}</h3>
+            <span v-if="event.child_name" class="child-chip" :style="{ '--child-color': event.child_color }">{{ event.child_name }}</span>
           </div>
           <p class="source-type-chip">{{ event.source_type === 'manual' ? '手入力' : 'おたより候補' }}</p>
         </div>
@@ -181,6 +189,7 @@ function formatDate(date: string) {
       <span>{{ showManualEventForm ? '閉じる' : '＋ 追加する' }}</span>
     </button>
     <form v-if="showManualEventForm" class="surface form-grid" novalidate @submit.prevent="submitManualEvent">
+      <label v-if="children.length > 0">対象の子ども<select v-model="manualEvent.child_id"><option value="">未設定</option><option v-for="child in children" :key="child.id" :value="child.id">{{ child.name }}</option></select></label>
       <label>予定名<input v-model="manualEvent.title" :aria-invalid="!!showManualError('title')" required type="text" placeholder="例：身体測定" /><small v-if="showManualError('title')" class="field-error">{{ showManualError('title') }}</small></label>
       <label>日付<input v-model="manualEvent.event_date" :aria-invalid="!!showManualError('event_date')" required type="date" /><small v-if="showManualError('event_date')" class="field-error">{{ showManualError('event_date') }}</small></label>
       <label class="checkbox-label"><input v-model="manualEvent.is_all_day" type="checkbox" />終日予定として登録する</label>

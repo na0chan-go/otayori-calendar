@@ -7,9 +7,20 @@ export type User = {
   created_at: string
 }
 
+export type Child = {
+  id: string
+  name: string
+  color: string
+  created_at: string
+  updated_at: string
+}
+
 export type Letter = {
   id: string
   title: string
+  child_id: string | null
+  child_name: string
+  child_color: string
   mime_type: string
   file_size: number
   image_url: string
@@ -89,6 +100,9 @@ export type UndoCandidateAction = {
 export type CalendarEvent = {
   id: string
   source_type: 'manual' | 'extracted'
+  child_id: string | null
+  child_name: string
+  child_color: string
   title: string
   event_date: string
   start_at: string | null

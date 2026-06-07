@@ -150,6 +150,32 @@
   color: var(--muted);
   font-size: 1.4rem;
 }
+
+.children-manager {
+  display: grid;
+  gap: 14px;
+  margin-top: 58px;
+}
+
+.child-list {
+  display: grid;
+  gap: 10px;
+}
+
+.child-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+}
+
+.child-color {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
 .important-events {
   margin-top: 58px;
 }

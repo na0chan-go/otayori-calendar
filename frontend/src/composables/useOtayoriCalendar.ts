@@ -2,6 +2,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { User, ViewName } from '../types'
 import { apiBaseUrl } from './api'
 import { useCalendarEvents } from './useCalendarEvents'
+import { useChildren } from './useChildren'
 import { useExtractedEvents } from './useExtractedEvents'
 import { useLetters } from './useLetters'
 import { toUserErrorMessage } from '../utils/requestError'
@@ -18,6 +19,7 @@ export function useOtayoriCalendar() {
   const user = ref<User | null>(null)
 
   const calendar = useCalendarEvents(errorMessage)
+  const children = useChildren(errorMessage)
   const candidates = useExtractedEvents(errorMessage, calendar.loadCalendarEvents)
   const letters = useLetters(errorMessage, {
     candidateCountForLetter: (letterId) =>
@@ -72,7 +74,7 @@ export function useOtayoriCalendar() {
       const body = (await response.json()) as { user: User }
       user.value = body.user
       showOnboardingGuide.value = !localStorage.getItem(onboardingStorageKey(body.user.id))
-      await Promise.all([letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
+      await Promise.all([children.loadChildren(), letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
     } catch (error) {
       errorMessage.value = toUserErrorMessage(error, '予期しないエラーが発生しました')
     } finally {
@@ -85,7 +87,7 @@ export function useOtayoriCalendar() {
     refreshingData.value = true
     errorMessage.value = ''
     try {
-      await Promise.all([letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
+      await Promise.all([children.loadChildren(), letters.loadLetters(), candidates.loadExtractedEvents(), calendar.loadCalendarEvents()])
     } catch (error) {
       errorMessage.value = toUserErrorMessage(error, '最新状態を確認できませんでした')
     } finally {
@@ -105,6 +107,7 @@ export function useOtayoriCalendar() {
     await fetch(`${apiBaseUrl}/auth/logout`, { method: 'POST', credentials: 'include' })
     user.value = null
     letters.resetLetters()
+    children.resetChildren()
     candidates.resetExtractedEvents()
     calendar.resetCalendarEvents()
   }
@@ -133,6 +136,7 @@ export function useOtayoriCalendar() {
   return {
     activeView,
     ...calendar,
+    ...children,
     ...candidates,
     errorMessage,
     focusedCalendarEventKey,
