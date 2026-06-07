@@ -137,6 +137,13 @@ backend/internal/
 
 各段階で既存APIパス・レスポンス形式・状態遷移を維持し、小さなPRとして検証する。
 
+### Current Migration Status
+
+- 予定候補の登録可否・登録結果の状態遷移は `internal/domain/extractedevent` へ分離済み。
+- 予定候補登録フローは `internal/usecase/extractedevent` へ分離済み。
+- 登録フローが利用するCalendar gatewayとregistration repositoryは `internal/port/extractedevent` で定義済み。
+- GORMとGoogle Calendar APIのadapterは移行中のためhandler内に残っており、次段階でinfrastructureへ移す。
+
 ## Error Handling
 
 | 想定する失敗 | 対策 |
