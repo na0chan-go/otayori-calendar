@@ -143,6 +143,7 @@ backend/internal/
 - 予定候補登録フローは `internal/usecase/extractedevent` へ分離済み。
 - 登録フローが利用するCalendar gatewayとregistration repositoryは `internal/port/extractedevent` で定義済み。
 - 予定候補の確認・除外・復元の状態遷移と保存フローはdomain/usecaseへ分離済み。
+- 予定候補の編集可否・入力検証・更新後状態と保存フローはdomain/usecaseへ分離済み。
 - GORMとGoogle Calendar APIのadapterは移行中のためhandler内に残っており、次段階でinfrastructureへ移す。
 
 ## Error Handling
