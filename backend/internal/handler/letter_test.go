@@ -73,6 +73,7 @@ func TestDeleteLetterDoesNotDeleteAnotherUsersLetter(t *testing.T) {
 	if err := db.Exec(`CREATE TABLE letters (
 		id TEXT PRIMARY KEY,
 		user_id TEXT NOT NULL,
+		child_id TEXT,
 		title TEXT,
 		image_path TEXT NOT NULL,
 		mime_type TEXT NOT NULL,

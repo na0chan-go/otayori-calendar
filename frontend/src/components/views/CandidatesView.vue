@@ -14,6 +14,7 @@ const {
   canRegisterExtractedEvent,
   canSelectExtractedEvent,
   candidateMessage,
+  children,
   eventDrafts,
   extractedEvents,
   extractedStatusLabel,
@@ -21,6 +22,7 @@ const {
   hasUnregisterableSelectedEvents,
   ignoreExtractedEvent,
   isCandidateDirty,
+  letters,
   registerExtractedEvent,
   registeringCandidateId,
   resetCandidateDraft,
@@ -39,6 +41,7 @@ type DateFilter = 'all' | 'upcoming' | 'past'
 
 const statusFilter = ref<StatusFilter>('all')
 const dateFilter = ref<DateFilter>('all')
+const childFilter = ref('')
 const expandedCandidateIds = ref<string[]>([])
 const previewEvents = ref<ExtractedEvent[]>([])
 const submittedCandidateIds = ref<string[]>([])
@@ -55,10 +58,16 @@ const statusFilters: { value: StatusFilter; label: string }[] = [
 const filteredExtractedEvents = computed(() =>
   extractedEvents.value.filter((event) =>
     (!selectedCandidateLetterId.value || event.letter_id === selectedCandidateLetterId.value) &&
+    (!childFilter.value || childForEvent(event)?.id === childFilter.value) &&
     matchesStatusFilter(event) &&
     matchesDateFilter(event),
   ),
 )
+
+function childForEvent(event: ExtractedEvent) {
+  const letter = letters.value.find((item) => item.id === event.letter_id)
+  return letter?.child_id ? children.value.find((child) => child.id === letter.child_id) : undefined
+}
 
 const filteredSelectableEvents = computed(() => filteredExtractedEvents.value.filter(canSelectExtractedEvent))
 
@@ -213,6 +222,13 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
           </button>
         </div>
       </div>
+      <div v-if="children.length > 0" class="filter-group">
+        <p>子どもで絞り込む</p>
+        <div class="filter-options">
+          <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
+          <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+        </div>
+      </div>
       <div class="filter-group">
         <p>日付で絞り込む</p>
         <div class="filter-options">
@@ -264,6 +280,7 @@ async function ignorePreviewEvent(event: ExtractedEvent) {
           <p class="status-chip">{{ extractedStatusLabel(event.status) }}</p>
           <div>
             <h3>{{ event.title }}</h3>
+            <span v-if="childForEvent(event)" class="child-chip" :style="{ '--child-color': childForEvent(event)?.color }">{{ childForEvent(event)?.name }}</span>
             <p class="candidate-date">{{ new Date(event.event_date).toLocaleDateString('ja-JP') }}</p>
             <p v-if="event.belongings" class="candidate-detail-preview">持ち物: {{ event.belongings }}</p>
             <p v-if="event.submission_deadline" class="candidate-detail-preview">

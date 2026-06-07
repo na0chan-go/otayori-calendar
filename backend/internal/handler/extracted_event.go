@@ -79,6 +79,7 @@ func (s *Server) listExtractedEvents(c echo.Context) error {
 
 	var events []model.ExtractedEvent
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Letter.Child").
 		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
 		Where("letters.user_id = ?", userID).
 		Order("extracted_events.event_date ASC, extracted_events.created_at DESC").
@@ -366,6 +367,7 @@ func parseBulkExtractedEventIDs(c echo.Context) ([]uuid.UUID, error) {
 func (s *Server) loadOwnedExtractedEvent(c echo.Context, userID uuid.UUID, eventID uuid.UUID) (model.ExtractedEvent, error) {
 	var event model.ExtractedEvent
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Letter.Child").
 		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
 		Where("extracted_events.id = ? AND letters.user_id = ?", eventID, userID).
 		First(&event).Error; err != nil {
@@ -380,6 +382,7 @@ func (s *Server) loadOwnedExtractedEvent(c echo.Context, userID uuid.UUID, event
 func (s *Server) loadOwnedExtractedEventsByID(ctx context.Context, userID uuid.UUID, eventIDs []uuid.UUID) (map[uuid.UUID]model.ExtractedEvent, error) {
 	var events []model.ExtractedEvent
 	if err := s.db.WithContext(ctx).
+		Preload("Letter.Child").
 		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
 		Where("extracted_events.id IN ? AND letters.user_id = ?", eventIDs, userID).
 		Find(&events).Error; err != nil {
@@ -629,7 +632,7 @@ func (s *Server) buildGoogleEventFromExtractedEvent(event model.ExtractedEvent) 
 	googleEvent := &calendar.Event{
 		Summary:     event.Title,
 		Location:    event.Location,
-		Description: extractedEventCalendarDescription(event),
+		Description: childDescription(event.Letter.Child, extractedEventCalendarDescription(event)),
 	}
 
 	timeZone := s.cfg.DefaultTimeZone

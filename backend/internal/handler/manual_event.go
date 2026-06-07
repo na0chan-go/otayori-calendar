@@ -20,6 +20,7 @@ import (
 )
 
 type manualEventRequest struct {
+	ChildID     string `json:"child_id"`
 	Title       string `json:"title"`
 	EventDate   string `json:"event_date"`
 	StartTime   string `json:"start_time"`
@@ -33,6 +34,9 @@ type manualEventRequest struct {
 type calendarEventResponse struct {
 	ID                    uuid.UUID  `json:"id"`
 	SourceType            string     `json:"source_type"`
+	ChildID               *uuid.UUID `json:"child_id"`
+	ChildName             string     `json:"child_name"`
+	ChildColor            string     `json:"child_color"`
 	Title                 string     `json:"title"`
 	EventDate             time.Time  `json:"event_date"`
 	StartAt               *time.Time `json:"start_at"`
@@ -61,10 +65,19 @@ func (s *Server) createManualEvent(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
+	child, err := s.loadOptionalOwnedChild(c.Request().Context(), userID, req.ChildID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 
 	manualEvent, googleEvent, err := s.buildManualEvent(userID, req)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+	manualEvent.Child = child
+	if child != nil {
+		manualEvent.ChildID = &child.ID
+		googleEvent.Description = childDescription(child, googleEvent.Description)
 	}
 
 	googleToken, err := s.loadGoogleToken(c.Request().Context(), userID)
@@ -109,6 +122,7 @@ func (s *Server) retryManualEvent(c echo.Context) error {
 
 	var manualEvent model.ManualEvent
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Child").
 		First(&manualEvent, "id = ? AND user_id = ?", eventID, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "manual event not found")
@@ -165,6 +179,7 @@ func (s *Server) listCalendarEvents(c echo.Context) error {
 
 	var manualEvents []model.ManualEvent
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Child").
 		Where("user_id = ? AND status IN ?", userID, []string{
 			model.ManualEventStatusRegistered,
 			model.ManualEventStatusFailed,
@@ -177,6 +192,7 @@ func (s *Server) listCalendarEvents(c echo.Context) error {
 
 	var extractedEvents []model.ExtractedEvent
 	if err := s.db.WithContext(c.Request().Context()).
+		Preload("Letter.Child").
 		Joins("JOIN letters ON letters.id = extracted_events.letter_id").
 		Where("letters.user_id = ? AND extracted_events.status IN ?", userID, []string{
 			model.ExtractedEventStatusRegistered,
@@ -355,7 +371,7 @@ func (s *Server) buildGoogleEventFromManualEvent(manualEvent model.ManualEvent) 
 	googleEvent := &calendar.Event{
 		Summary:     manualEvent.Title,
 		Location:    manualEvent.Location,
-		Description: manualEvent.Description,
+		Description: childDescription(manualEvent.Child, manualEvent.Description),
 	}
 
 	timeZone := strings.TrimSpace(manualEvent.TimeZone)
@@ -472,9 +488,10 @@ func googleCalendarEventExistsFromResult(event *calendar.Event, err error) (bool
 }
 
 func newManualCalendarEventResponse(event model.ManualEvent) calendarEventResponse {
-	return calendarEventResponse{
+	response := calendarEventResponse{
 		ID:                    event.ID,
 		SourceType:            "manual",
+		ChildID:               event.ChildID,
 		Title:                 event.Title,
 		EventDate:             event.EventDate,
 		StartAt:               event.StartAt,
@@ -488,12 +505,18 @@ func newManualCalendarEventResponse(event model.ManualEvent) calendarEventRespon
 		CreatedAt:             event.CreatedAt,
 		UpdatedAt:             event.UpdatedAt,
 	}
+	if event.Child != nil {
+		response.ChildName = event.Child.Name
+		response.ChildColor = event.Child.Color
+	}
+	return response
 }
 
 func newExtractedCalendarEventResponse(event model.ExtractedEvent, timeZone string) calendarEventResponse {
 	response := calendarEventResponse{
 		ID:                    event.ID,
 		SourceType:            "extracted",
+		ChildID:               event.Letter.ChildID,
 		Title:                 event.Title,
 		EventDate:             event.EventDate,
 		IsAllDay:              event.IsAllDay,
@@ -504,6 +527,10 @@ func newExtractedCalendarEventResponse(event model.ExtractedEvent, timeZone stri
 		Status:                event.Status,
 		CreatedAt:             event.CreatedAt,
 		UpdatedAt:             event.UpdatedAt,
+	}
+	if event.Letter.Child != nil {
+		response.ChildName = event.Letter.Child.Name
+		response.ChildColor = event.Letter.Child.Color
 	}
 
 	if event.StartTime != nil {

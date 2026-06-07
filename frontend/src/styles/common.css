@@ -147,3 +147,24 @@ textarea[aria-invalid="true"] {
   border-color: var(--danger);
   box-shadow: 0 0 0 3px var(--danger-soft);
 }
+
+.child-chip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--child-color, var(--mint)) 28%, white);
+  padding: 5px 9px;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.child-chip::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--child-color, var(--mint-strong));
+  content: "";
+}

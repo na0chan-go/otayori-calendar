@@ -47,6 +47,14 @@
     width: 100%;
   }
 
+  .child-form {
+    grid-template-columns: auto 1fr;
+  }
+
+  .child-form button {
+    grid-column: 1 / -1;
+  }
+
   .app-header {
     position: static;
     align-items: start;

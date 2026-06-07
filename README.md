@@ -211,6 +211,9 @@ npm run dev
 | GET | `/auth/google/login` | Google OAuthログインを開始する |
 | GET | `/auth/google/callback` | Google OAuth callbackを受け取り、ユーザーとトークンを保存する |
 | GET | `/api/me` | ログイン中のアプリ内ユーザーを返す |
+| GET | `/api/children` | 自分の子ども設定一覧を返す |
+| POST | `/api/children` | 子どもの表示名と識別色を登録する |
+| PATCH | `/api/children/:id` | 自分の子ども設定を更新する |
 | POST | `/api/manual-events` | 手入力予定をGoogleカレンダーへ登録し、event IDを保存する |
 | POST | `/api/manual-events/:id/retry` | failed状態の手入力予定をGoogleカレンダーへ再登録する |
 | GET | `/api/calendar-events` | 登録済み・登録失敗予定の一覧を返す |

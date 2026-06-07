@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import ImagePreparation from '../ImagePreparation.vue'
 import { useOtayoriCalendarContext } from '../../composables/otayoriCalendarContext'
 import type { Letter } from '../../types'
@@ -12,8 +12,10 @@ const {
   extractingLetterId,
   extractedEvents,
   letterImage,
+  letterChildId,
   letterTitle,
   letters,
+  children,
   ocrTextByLetter,
   onLetterImageChange,
   selectedCandidateLetterId,
@@ -21,6 +23,8 @@ const {
   uploadingLetter,
   uploadLetter,
 } = useOtayoriCalendarContext()
+const childFilter = ref('')
+const displayedLetters = computed(() => letters.value.filter((letter) => !childFilter.value || letter.child_id === childFilter.value))
 
 const progressByLetter = computed(() =>
   Object.fromEntries(
@@ -49,6 +53,7 @@ function showLetterCandidates(letter: Letter) {
     </div>
     <form class="surface form-grid upload-form" @submit.prevent="uploadLetter">
       <label>おたよりの名前<input v-model="letterTitle" type="text" placeholder="例：6月のえんだより" /></label>
+      <label v-if="children.length > 0">対象の子ども<select v-model="letterChildId"><option value="">未設定</option><option v-for="child in children" :key="child.id" :value="child.id">{{ child.name }}</option></select></label>
       <label class="file-field">画像を選択・撮影<input accept="image/jpeg,image/png,image/webp" capture="environment" required type="file" @change="onLetterImageChange" /><span>{{ letterImage?.name || 'JPEG・PNG・WebP' }}</span></label>
       <ImagePreparation v-if="letterImage" :file="letterImage" @change="letterImage = $event" />
       <button class="primary-button" :disabled="uploadingLetter" type="submit">{{ uploadingLetter ? 'アップロード中...' : 'アップロードする' }}</button>
@@ -65,8 +70,12 @@ function showLetterCandidates(letter: Letter) {
       <p>園から届いた画像を追加すると、AIが予定候補を見つけます。</p>
       <button class="primary-button" type="button" @click="scrollToUpload">画像を選択する</button>
     </div>
+    <div v-if="letters.length > 0 && children.length > 0" class="filter-options">
+      <button :class="{ active: childFilter === '' }" type="button" @click="childFilter = ''">すべて</button>
+      <button v-for="child in children" :key="child.id" :class="{ active: childFilter === child.id }" type="button" @click="childFilter = child.id">{{ child.name }}</button>
+    </div>
     <div class="letter-grid">
-      <article v-for="letter in letters" :key="letter.id" class="surface letter-card">
+      <article v-for="letter in displayedLetters" :key="letter.id" class="surface letter-card">
         <img v-if="letter.object_url" :src="letter.object_url" :alt="letter.title || 'おたより画像'" />
         <div class="letter-summary">
           <div class="letter-progress-heading">
@@ -76,6 +85,7 @@ function showLetterCandidates(letter: Letter) {
             </p>
           </div>
           <h3>{{ letter.title || '無題のおたより' }}</h3>
+          <span v-if="letter.child_name" class="child-chip" :style="{ '--child-color': letter.child_color }">{{ letter.child_name }}</span>
           <p>{{ new Date(letter.created_at).toLocaleString('ja-JP') }}</p>
           <div v-if="progressByLetter[letter.id].total > 0" class="letter-progress-counts">
             <span>候補 {{ progressByLetter[letter.id].total }}件</span>

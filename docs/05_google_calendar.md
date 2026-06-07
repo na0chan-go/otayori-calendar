@@ -79,6 +79,7 @@ google_calendar_event_id
 | 提出期限 | 終日予定 |
 | 持ち物 | belongingsへ保存し、登録時にdescriptionへ「持ち物: ...」として反映 |
 | 提出期限 | submission_deadlineへ保存し、登録時にdescriptionへ「提出期限: ...」として反映 |
+| 子ども設定あり | タイトルは変更せず、descriptionの先頭へ「対象: 子ども名」として反映 |
 
 ## Failure Handling
 
