@@ -147,6 +147,7 @@ backend/internal/
 - AI抽出の入力選択・候補生成・トランザクション保存フローはusecase/portへ分離済み。
 - AI抽出候補の構造・入力検証・簡易OCR抽出ルールは `internal/domain/extractedevent` へ分離済み。
 - 外部AI出力のJSON解析とGORMモデル変換は移行用adapterとしてhandlerに残っている。
+- おたより削除の所有権確認・画像隔離・DB削除・画像削除フローは `internal/usecase/letter` と `internal/port/letter` へ分離済み。
 - GORMとGoogle Calendar APIのadapterは移行中のためhandler内に残っており、次段階でinfrastructureへ移す。
 
 ## Error Handling
