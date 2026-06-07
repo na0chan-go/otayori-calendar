@@ -4,6 +4,7 @@ import CandidatesView from './components/views/CandidatesView.vue'
 import HomeView from './components/views/HomeView.vue'
 import LettersView from './components/views/LettersView.vue'
 import OnboardingGuide from './components/OnboardingGuide.vue'
+import OperationStatus from './components/OperationStatus.vue'
 import { provideOtayoriCalendar } from './composables/otayoriCalendarContext'
 import { useOtayoriCalendar } from './composables/useOtayoriCalendar'
 
@@ -57,6 +58,7 @@ const {
       </header>
 
       <div id="top" class="content-shell">
+        <OperationStatus />
         <HomeView v-if="activeView === 'home'" />
         <p v-if="errorMessage" class="notice error-notice">{{ errorMessage }}</p>
         <p v-if="letterMessage" class="notice success-notice">{{ letterMessage }}</p>

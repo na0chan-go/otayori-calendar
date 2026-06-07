@@ -152,6 +152,53 @@
   padding: 42px 0 96px;
 }
 
+.operation-status {
+  position: sticky;
+  z-index: 8;
+  top: 90px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  border: 1px solid #bfdccf;
+  border-radius: 18px;
+  background: rgba(239, 250, 245, 0.96);
+  padding: 14px 16px;
+  box-shadow: 0 14px 34px rgba(39, 60, 49, 0.12);
+}
+
+.operation-status.offline {
+  border-color: #e8c986;
+  background: rgba(255, 248, 231, 0.97);
+}
+
+.operation-status.failed {
+  border-color: #edb0a8;
+  background: rgba(255, 247, 246, 0.97);
+}
+
+.operation-status div {
+  display: grid;
+  gap: 3px;
+}
+
+.operation-status small {
+  color: var(--muted);
+}
+
+.operation-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d9a94c;
+}
+
+.operation-indicator.active {
+  background: var(--mint-strong);
+  animation: pulse 1s ease-in-out infinite;
+}
+
 .guide-backdrop,
 .preview-backdrop {
   position: fixed;
